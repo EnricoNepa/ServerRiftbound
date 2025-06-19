@@ -2,6 +2,12 @@ const express = require("express");
 const http = require("http");
 const { Server } = require("socket.io");
 const cors = require("cors");
+// Utility per rimuovere la property image da ogni carta
+function cleanCard(card) {
+  if (!card) return card;
+  const { image, ...rest } = card;
+  return rest;
+}
 
 const app = express();
 app.use(cors());
@@ -18,45 +24,44 @@ const rooms = {}; // { [roomCode]: { hostId, players: { [socketId]: { nickname, 
 
 io.on("connection", (socket) => {
   socket.on("move-card", ({ code, cardInstance }) => {
-  const room = rooms[code];
-  if (!room || !room.lastGameState) return;
+    const room = rooms[code];
+    if (!room || !room.lastGameState) return;
 
-  // Aggiorna la carta nel gameState centrale (owner deve restare il nickname!)
-  const cards = room.lastGameState.floatingCards;
-  const idx = cards.findIndex((c) => c.id === cardInstance.id);
-  if (idx !== -1) {
-    // Assicurati che owner resti il vero nickname, NON "local"
-    cards[idx] = { ...cards[idx], ...cardInstance, owner: cards[idx].owner };
-  }
-  console.log(
-    `Carta ${cardInstance.id} mossa a x:${cardInstance.x} y:${cardInstance.y} (owner: ${cardInstance.owner})`
-  );
-  // Aggiorna lo stato centrale
-  room.lastGameState.floatingCards = cards;
+    // Aggiorna la carta nel gameState centrale (owner deve restare il nickname!)
+    const cards = room.lastGameState.floatingCards;
+    const idx = cards.findIndex((c) => c.id === cardInstance.id);
+    if (idx !== -1) {
+      // Assicurati che owner resti il vero nickname, NON "local"
+      cards[idx] = { ...cards[idx], ...cardInstance, owner: cards[idx].owner };
+    }
+    console.log(
+      `Carta ${cardInstance.id} mossa a x:${cardInstance.x} y:${cardInstance.y} (owner: ${cardInstance.owner})`
+    );
+    // Aggiorna lo stato centrale
+    room.lastGameState.floatingCards = cards;
 
-  // Manda a tutti il nuovo gameState (full sync)
-  for (const socketId in room.players) {
-    const s = io.sockets.sockets.get(socketId);
-    if (!s) continue;
-    const thisNickname = room.players[socketId].nickname;
+    // Manda a tutti il nuovo gameState (full sync)
+    for (const socketId in room.players) {
+      const s = io.sockets.sockets.get(socketId);
+      if (!s) continue;
+      const thisNickname = room.players[socketId].nickname;
 
-    // Mappa "local"/"opponent" SOLO PER QUESTO CLIENT, senza toccare lo stato centrale
-    const personalizedCards = cards.map((card) => ({
-      ...card,
-      owner: card.owner === thisNickname ? "local" : "opponent",
-    }));
+      // Mappa "local"/"opponent" SOLO PER QUESTO CLIENT, senza toccare lo stato centrale
+      const personalizedCards = cards.map((card) => ({
+        ...card,
+        owner: card.owner === thisNickname ? "local" : "opponent",
+      }));
 
-    s.emit("start-game", {
-      ...room.lastGameState,
-      floatingCards: personalizedCards,
-      deck: {
-        ...room.lastGameState.deck,
-        nickname: thisNickname,
-      },
-    });
-  }
-});
-
+      s.emit("start-game", {
+        ...room.lastGameState,
+        floatingCards: personalizedCards,
+        deck: {
+          ...room.lastGameState.deck,
+          nickname: thisNickname,
+        },
+      });
+    }
+  });
 
   socket.on("create-room", ({ nickname }) => {
     // Genera un codice univoco random (3 lettere/numeri)
@@ -186,7 +191,7 @@ io.on("connection", (socket) => {
         id: `${nickname}-${i}`,
       }));
 
-      cardsByPlayer[nickname] = renamedCards;
+      cardsByPlayer[nickname] = renamedCards.map(cleanCard);
 
       const battlefield = renamedCards.find((c) => c.type === "battlefield");
       const legend = renamedCards.find((c) => c.type === "legend");
@@ -206,10 +211,10 @@ io.on("connection", (socket) => {
       [battlefield, champion, legend].filter(Boolean).forEach((c) => {
         floatingCards.push({
           id: c.id,
-          card: c,
+          card: cleanCard(c),
           x,
           y: yBase - 50,
-          owner: nickname, // temporaneo, correggeremo dopo
+          owner: nickname,
         });
         x += 120;
       });
@@ -217,9 +222,9 @@ io.on("connection", (socket) => {
       hand.forEach((c, i) => {
         floatingCards.push({
           id: c.id,
-          card: c,
-          x: 650 + i * 100,
-          y: yBase,
+          card: cleanCard(c),
+          x,
+          y: yBase - 50,
           owner: nickname,
         });
       });
@@ -309,7 +314,7 @@ io.on("connection", (socket) => {
 
     state.floatingCards.push({
       id: card.id,
-      card,
+      card: cleanCard(card), // <-- fix qui
       x: 1000,
       y: 500,
       owner: "local",
@@ -317,6 +322,7 @@ io.on("connection", (socket) => {
 
     io.to(code).emit("start-game", state);
   });
+
   socket.on("draw-rune", ({ code, playerNickname }) => {
     const room = rooms[code];
     if (!room || !room.lastGameState) return;
@@ -337,7 +343,7 @@ io.on("connection", (socket) => {
 
     state.floatingCards.push({
       id: card.id,
-      card,
+      card: cleanCard(card), // <-- fix qui
       x: 300,
       y: 500,
       owner: "local",
@@ -345,6 +351,7 @@ io.on("connection", (socket) => {
 
     io.to(code).emit("start-game", state);
   });
+
   socket.on("flip-card", ({ code, cardId, playerNickname }) => {
     const room = rooms[code];
     if (!room || !room.lastGameState) return;
