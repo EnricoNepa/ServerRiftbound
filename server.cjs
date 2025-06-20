@@ -188,7 +188,7 @@ io.on("connection", (socket) => {
 
       const renamedCards = deck.cards.map((c, i) => ({
         ...c,
-        id: `${nickname}-${i}`,
+        instanceId: `${nickname}-${i}`, // nuovo ID per il multiplayer
       }));
 
       cardsByPlayer[nickname] = renamedCards.map(cleanCard);
@@ -221,7 +221,7 @@ io.on("connection", (socket) => {
 
       hand.forEach((c, i) => {
         floatingCards.push({
-          id: c.id,
+          id: c.instanceId,
           card: cleanCard(c),
           x,
           y: yBase - 50,
