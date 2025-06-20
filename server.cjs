@@ -181,6 +181,7 @@ io.on("connection", (socket) => {
     const BOARD_HEIGHT = 855;
     const yBaseBasso = BOARD_HEIGHT - 350; // parte bassa (es. 2485)
     const yBaseAlto = 350; // parte alta
+    console.log(`🧩 Deck ricevuto da ${player.nickname}:`, player.deck);
 
     playersArray.forEach(([socketId, player], idx) => {
       const nickname = player.nickname;
