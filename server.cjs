@@ -219,8 +219,10 @@ io.on("connection", (socket) => {
       let x = 260;
       [battlefield, champion, legend].filter(Boolean).forEach((c) => {
         floatingCards.push({
-          id: c.id,
-          card: cleanCard(c),
+          id: `${nickname}-${Date.now()}-${Math.random()
+            .toString(36)
+            .slice(2, 6)}`,
+          card: c,
           x,
           y: yBase - 50,
           owner: nickname,
@@ -230,8 +232,10 @@ io.on("connection", (socket) => {
 
       hand.forEach((c, i) => {
         floatingCards.push({
-          id: c.id,
-          card: cleanCard(c),
+          id: `${nickname}-${Date.now()}-${Math.random()
+            .toString(36)
+            .slice(2, 6)}`,
+          card: c,
           x,
           y: yBase - 50,
           owner: nickname,
@@ -311,8 +315,10 @@ io.on("connection", (socket) => {
 
     newCards.forEach((c) => {
       state.floatingCards.push({
-        id: c.id,
-        card: cleanCard(c),
+        id: `${playerNickname}-${Date.now()}-${Math.random()
+          .toString(36)
+          .slice(2, 6)}`,
+        card: c,
         x: x,
         y: yBase - 50,
         owner: playerNickname,
@@ -369,8 +375,10 @@ io.on("connection", (socket) => {
     const card = mainDeck[0];
 
     state.floatingCards.push({
-      id: card.id,
-      card: cleanCard(card), // <-- fix qui
+      id: `${playerNickname}-${Date.now()}-${Math.random()
+        .toString(36)
+        .slice(2, 6)}`,
+      card: c, // <-- fix qui
       x: 1000,
       y: 500,
       owner: playerNickname,
@@ -398,8 +406,10 @@ io.on("connection", (socket) => {
     const card = runeDeck[0];
 
     state.floatingCards.push({
-      id: card.id,
-      card: cleanCard(card), // <-- fix qui
+      id: `${playerNickname}-${Date.now()}-${Math.random()
+        .toString(36)
+        .slice(2, 6)}`,
+      card: c, // <-- fix qui
       x: 300,
       y: 500,
       owner: playerNickname,
