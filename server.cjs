@@ -319,7 +319,8 @@ io.on("connection", (socket) => {
     });
 
     // Sync a tutti
-    io.to(code).emit("start-game", state);
+    syncGameStateToAll(code);
+
   });
 
   socket.on("disconnect", () => {
@@ -374,7 +375,7 @@ io.on("connection", (socket) => {
       owner: playerNickname,
     });
 
-    io.to(code).emit("start-game", state);
+    syncGameStateToAll(code);
   });
 
   socket.on("draw-rune", ({ code, playerNickname }) => {
@@ -403,7 +404,7 @@ io.on("connection", (socket) => {
       owner: playerNickname,
     });
 
-    io.to(code).emit("start-game", state);
+    syncGameStateToAll(code);
   });
 
   socket.on("flip-card", ({ code, cardId, playerNickname }) => {
@@ -415,7 +416,7 @@ io.on("connection", (socket) => {
     );
     if (!card) return;
     card.flipped = !card.flipped;
-    io.to(code).emit("start-game", state);
+    syncGameStateToAll(code);
   });
   socket.on("tap-card", ({ code, cardId, playerNickname }) => {
     const room = rooms[code];
@@ -426,7 +427,7 @@ io.on("connection", (socket) => {
     );
     if (!card) return;
     card.rotated = !card.rotated;
-    io.to(code).emit("start-game", state);
+    syncGameStateToAll(code);
   });
   socket.on("recycle-card", ({ code, cardId, playerNickname }) => {
     const room = rooms[code];
@@ -450,7 +451,7 @@ io.on("connection", (socket) => {
       }
     }
 
-    io.to(code).emit("start-game", state);
+    syncGameStateToAll(code);
   });
 
   //TERMINA PARTITA
@@ -481,6 +482,31 @@ io.on("connection", (socket) => {
       playerList.map((p) => p.nickname).join(", ")
     );
   }
+
+  function syncGameStateToAll(code) {
+  const room = rooms[code];
+  if (!room || !room.lastGameState) return;
+
+  for (const socketId in room.players) {
+    const s = io.sockets.sockets.get(socketId);
+    if (!s) continue;
+    const nickname = room.players[socketId].nickname;
+
+    const personalizedCards = room.lastGameState.floatingCards.map((card) => ({
+      ...card,
+      owner: card.owner === nickname ? "local" : "opponent",
+    }));
+
+    s.emit("start-game", {
+      ...room.lastGameState,
+      floatingCards: personalizedCards,
+      deck: {
+        ...room.lastGameState.deck,
+        nickname,
+      },
+    });
+  }
+}
 });
 
 const PORT = process.env.PORT || 4000;
