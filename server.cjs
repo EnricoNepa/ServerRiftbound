@@ -378,7 +378,7 @@ io.on("connection", (socket) => {
       id: `${playerNickname}-${Date.now()}-${Math.random()
         .toString(36)
         .slice(2, 6)}`,
-      card: c, // <-- fix qui
+      card: card, // <-- fix qui
       x: 1000,
       y: 500,
       owner: playerNickname,
@@ -409,7 +409,7 @@ io.on("connection", (socket) => {
       id: `${playerNickname}-${Date.now()}-${Math.random()
         .toString(36)
         .slice(2, 6)}`,
-      card: c, // <-- fix qui
+      card: card, // <-- fix qui
       x: 300,
       y: 500,
       owner: playerNickname,
