@@ -256,20 +256,25 @@ io.on("connection", (socket) => {
         floatingCards
       );
       room.lastGameState = {
-        floatingCards: personalizedFloatingCards,
+        floatingCards, // salva solo la versione grezza, non personalizzata
         allPlayers: playersArray.map(([_, p]) => ({
           nickname: p.nickname,
           name: p.deck.name,
           cards: cardsByPlayer[p.nickname],
         })),
         roomCode: code,
+      };
+
+      // Invia a ogni player la versione personalizzata
+      s.emit("start-game", {
+        ...room.lastGameState,
+        floatingCards: personalizedFloatingCards,
         deck: {
           nickname: player.nickname,
           name: player.deck.name,
           cards: cardsByPlayer[player.nickname],
         },
-      };
-      s.emit("start-game", room.lastGameState);
+      });
 
       console.log("Emit start-game TO", player.nickname);
     }
