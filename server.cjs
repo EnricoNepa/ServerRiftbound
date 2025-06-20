@@ -186,11 +186,13 @@ io.on("connection", (socket) => {
       console.log(`🧩 Deck ricevuto da ${player.nickname}:`, player.deck);
       const nickname = player.nickname;
       const deck = player.deck;
+console.log(`📦 Deck originale di ${nickname}:`, deck.cards);
 
       const renamedCards = deck.cards.map((c, i) => ({
         ...c,
         id: `${nickname}-${i}`,
       }));
+console.log(`🆔 Deck rinominato di ${nickname}:`, renamedCards);
 
       cardsByPlayer[nickname] = renamedCards.map(cleanCard);
 
