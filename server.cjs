@@ -188,13 +188,11 @@ io.on("connection", (socket) => {
       console.log(`🧩 Deck ricevuto da ${player.nickname}:`, player.deck);
       const nickname = player.nickname;
       const deck = player.deck;
-console.log(`📦 Deck originale di ${nickname}:`, deck.cards);
+      console.log(`📦 Deck originale di ${nickname}:`, deck.cards);
 
-      const renamedCards = deck.cards.map((c, i) => ({
-        ...c,
-        id: `${nickname}-${i}`,
-      }));
-console.log(`🆔 Deck rinominato di ${nickname}:`, renamedCards);
+      const renamedCards = deck.cards.map(cleanCard);
+
+      console.log(`🆔 Deck rinominato di ${nickname}:`, renamedCards);
 
       cardsByPlayer[nickname] = renamedCards.map(cleanCard);
 
@@ -324,7 +322,6 @@ console.log(`🆔 Deck rinominato di ${nickname}:`, renamedCards);
 
     // Sync a tutti
     syncGameStateToAll(code);
-
   });
 
   socket.on("disconnect", () => {
@@ -488,29 +485,31 @@ console.log(`🆔 Deck rinominato di ${nickname}:`, renamedCards);
   }
 
   function syncGameStateToAll(code) {
-  const room = rooms[code];
-  if (!room || !room.lastGameState) return;
+    const room = rooms[code];
+    if (!room || !room.lastGameState) return;
 
-  for (const socketId in room.players) {
-    const s = io.sockets.sockets.get(socketId);
-    if (!s) continue;
-    const nickname = room.players[socketId].nickname;
+    for (const socketId in room.players) {
+      const s = io.sockets.sockets.get(socketId);
+      if (!s) continue;
+      const nickname = room.players[socketId].nickname;
 
-    const personalizedCards = room.lastGameState.floatingCards.map((card) => ({
-      ...card,
-      owner: card.owner === nickname ? "local" : "opponent",
-    }));
+      const personalizedCards = room.lastGameState.floatingCards.map(
+        (card) => ({
+          ...card,
+          owner: card.owner === nickname ? "local" : "opponent",
+        })
+      );
 
-    s.emit("start-game", {
-      ...room.lastGameState,
-      floatingCards: personalizedCards,
-      deck: {
-        ...room.lastGameState.deck,
-        nickname,
-      },
-    });
+      s.emit("start-game", {
+        ...room.lastGameState,
+        floatingCards: personalizedCards,
+        deck: {
+          ...room.lastGameState.deck,
+          nickname,
+        },
+      });
+    }
   }
-}
 });
 
 const PORT = process.env.PORT || 4000;
