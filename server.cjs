@@ -216,13 +216,16 @@ io.on("connection", (socket) => {
 
       // idx === 0 => primo player => basso, idx === 1 => secondo player => alto
       const yBase = idx === 0 ? yBaseBasso : yBaseAlto;
+      const generatedId = `${nickname}-${Date.now()}-${Math.random()
+        .toString(36)
+        .slice(2, 6)}`;
       let x = 260;
       [battlefield, champion, legend].filter(Boolean).forEach((c) => {
         floatingCards.push({
           id: `${nickname}-${Date.now()}-${Math.random()
             .toString(36)
             .slice(2, 6)}`,
-          card: c,
+          card: { ...c, instanceId: generatedId },
           x,
           y: yBase - 50,
           owner: nickname,
@@ -231,11 +234,14 @@ io.on("connection", (socket) => {
       });
 
       hand.forEach((c, i) => {
+        const generatedId = `${nickname}-${Date.now()}-${Math.random()
+          .toString(36)
+          .slice(2, 6)}`;
         floatingCards.push({
           id: `${nickname}-${Date.now()}-${Math.random()
             .toString(36)
             .slice(2, 6)}`,
-          card: c,
+          card: { ...c, instanceId: generatedId },
           x,
           y: yBase - 50,
           owner: nickname,
@@ -314,11 +320,14 @@ io.on("connection", (socket) => {
     let x = 1000;
 
     newCards.forEach((c) => {
+      const generatedId = `${playerNickname}-${Date.now()}-${Math.random()
+        .toString(36)
+        .slice(2, 6)}`;
       state.floatingCards.push({
         id: `${playerNickname}-${Date.now()}-${Math.random()
           .toString(36)
           .slice(2, 6)}`,
-        card: c,
+        card: { ...c, instanceId: generatedId },
         x: x,
         y: yBase - 50,
         owner: playerNickname,
