@@ -193,12 +193,18 @@ io.on("connection", (socket) => {
 
       cardsByPlayer[nickname] = renamedCards.map(cleanCard);
 
-      const battlefield = renamedCards.find((c) => c.type === "battlefield");
-      const legend = renamedCards.find((c) => c.type === "legend");
-      const champion = renamedCards.find(
+      const shuffled = [...renamedCards].sort(() => Math.random() - 0.5);
+      console.log(
+        `🎴 ${nickname} → deck mixato:`,
+        shuffled.map((c) => c.id)
+      );
+      const battlefield = shuffled.find((c) => c.type === "battlefield");
+      const legend = shuffled.find((c) => c.type === "legend");
+      const champion = shuffled.find(
         (c) => c.type === "champion" && c.metadata === "main"
       );
-      const units = renamedCards.filter(
+
+      const units = shuffled.filter(
         (c) =>
           (c.type === "unit" || c.type === "champion") &&
           !(champion && c.name === champion.name && c.metadata === "main")
