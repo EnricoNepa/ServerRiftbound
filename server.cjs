@@ -279,6 +279,48 @@ io.on("connection", (socket) => {
       console.log("Emit start-game TO", player.nickname);
     }
   });
+  socket.on("mulligan", ({ code, playerNickname, cardIds }) => {
+    const room = rooms[code];
+    if (!room || !room.lastGameState) return;
+    const state = room.lastGameState;
+
+    console.log(`🔁 Mulligan ricevuto da ${playerNickname}:`, cardIds);
+
+    const player = state.allPlayers.find((p) => p.nickname === playerNickname);
+    if (!player) return;
+
+    // Rimuovi carte scelte dal floating (mano iniziale)
+    state.floatingCards = state.floatingCards.filter(
+      (c) => !(c.owner === playerNickname && cardIds.includes(c.card.id))
+    );
+
+    // Pesca nuove carte per rimpiazzare le scartate
+    const floatingIds = state.floatingCards.map((c) => c.card.id);
+    const deck = player.cards.filter(
+      (c) =>
+        (c.type === "unit" || c.type === "champion") &&
+        !floatingIds.includes(c.id)
+    );
+
+    const newCards = deck.slice(0, cardIds.length);
+    const yBase =
+      state.floatingCards.find((c) => c.owner === playerNickname)?.y || 500;
+    let x = 1000;
+
+    newCards.forEach((c) => {
+      state.floatingCards.push({
+        id: c.id,
+        card: cleanCard(c),
+        x: x,
+        y: yBase - 50,
+        owner: playerNickname,
+      });
+      x += 100;
+    });
+
+    // Sync a tutti
+    io.to(code).emit("start-game", state);
+  });
 
   socket.on("disconnect", () => {
     const code = socket.data.roomCode;
