@@ -371,7 +371,7 @@ io.on("connection", (socket) => {
       card: cleanCard(card), // <-- fix qui
       x: 1000,
       y: 500,
-      owner: "local",
+      owner: playerNickname,
     });
 
     io.to(code).emit("start-game", state);
@@ -400,7 +400,7 @@ io.on("connection", (socket) => {
       card: cleanCard(card), // <-- fix qui
       x: 300,
       y: 500,
-      owner: "local",
+      owner: playerNickname,
     });
 
     io.to(code).emit("start-game", state);
