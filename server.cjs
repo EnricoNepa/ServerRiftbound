@@ -160,6 +160,7 @@ io.on("connection", (socket) => {
   });
 
   socket.on("start-game", ({ code }) => {
+    console.log("🎯 Handler start-game attivato per stanza", code);
     const room = rooms[code];
     if (!room) return;
 
@@ -183,6 +184,7 @@ io.on("connection", (socket) => {
     const yBaseAlto = 350; // parte alta
 
     playersArray.forEach(([socketId, player], idx) => {
+      console.log("Numero di giocatori ready:", playersArray.length);
       console.log(`🧩 Deck ricevuto da ${player.nickname}:`, player.deck);
       const nickname = player.nickname;
       const deck = player.deck;
