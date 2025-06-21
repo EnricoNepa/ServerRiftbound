@@ -376,7 +376,14 @@ io.on("connection", (socket) => {
 
     const yBase =
       state.floatingCards.find((c) => c.owner === playerNickname)?.y || 500;
-    let x = 1000;
+    const existingHandCount = state.floatingCards.filter(
+      (c) =>
+        c.owner === playerNickname &&
+        (c.card.type === "unit" || c.card.type === "champion") &&
+        c.card.metadata !== "main"
+    ).length;
+
+    let x = 260 + existingHandCount * 100;
 
     newCards.forEach((c) => {
       const generatedId = `${playerNickname}-${Date.now()}-${Math.random()
