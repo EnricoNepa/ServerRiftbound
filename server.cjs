@@ -349,46 +349,50 @@ io.on("connection", (socket) => {
     const player = state.allPlayers.find((p) => p.nickname === playerNickname);
     if (!player) return;
 
-    // Rimuove le carte scartate dalla mano iniziale
+    // 1. Rimuove TUTTE le carte in mano del player
     state.floatingCards = state.floatingCards.filter(
       (c) =>
-        !(c.owner === playerNickname && cardIds.includes(c.card.instanceId))
+        !(
+          c.owner === playerNickname &&
+          (c.card.type === "unit" || c.card.type === "champion") &&
+          c.card.metadata !== "main"
+        )
     );
 
-    const floatingIds = state.floatingCards
-      .filter((c) => c.owner === playerNickname)
-      .map((c) => c.card.instanceId);
+    // 2. Trova carte da tenere (quelle NON mulligate)
+    const cardsToKeep = player.cards.filter(
+      (c) =>
+        (c.type === "unit" || c.type === "champion") &&
+        c.metadata !== "main" &&
+        !cardIds.includes(c.instanceId)
+    );
 
-    // Pesca nuove carte SOLO di tipo unit o champion NON main
-    const availableCards = player.cards
+    // 3. Trova carte da pescare per sostituire quelle mulligate
+    const availableNew = player.cards
       .filter(
         (c) =>
           (c.type === "unit" || c.type === "champion") &&
           c.metadata !== "main" &&
-          !floatingIds.includes(c.instanceId) &&
+          !cardsToKeep.includes(c) &&
           !cardIds.includes(c.instanceId)
       )
       .sort(() => Math.random() - 0.5);
-    console.log(`📥 Carte disponibili per nuova mano:`);
-    availableCards.forEach((c) => console.log(`${c.name} → ${c.instanceId}`));
 
-    const newCards = availableCards.slice(0, cardIds.length);
+    const cardsToAdd = [
+      ...cardsToKeep,
+      ...availableNew.slice(0, cardIds.length),
+    ];
 
+    // 4. Posiziona le 4 carte affiancate ordinatamente
     const yBase =
       state.floatingCards.find((c) => c.owner === playerNickname)?.y || 500;
-    const existingHandCount = state.floatingCards.filter(
-      (c) =>
-        c.owner === playerNickname &&
-        (c.card.type === "unit" || c.card.type === "champion") &&
-        c.card.metadata !== "main"
-    ).length;
+    let x = 260;
 
-    let x = 260 + existingHandCount * 100;
-
-    newCards.forEach((c) => {
+    cardsToAdd.forEach((c) => {
       const generatedId = `${playerNickname}-${Date.now()}-${Math.random()
         .toString(36)
         .slice(2, 6)}`;
+
       state.floatingCards.push({
         id: generatedId,
         card: { ...c, instanceId: generatedId },
