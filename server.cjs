@@ -332,15 +332,12 @@ io.on("connection", (socket) => {
 
     // Pesca nuove carte SOLO di tipo unit o champion NON main
     const availableCards = player.cards
-      .filter((c) => {
-        return (
-          (c.type === "unit" || c.type === "champion") &&
-          c.metadata !== "main" &&
-          !["rune", "battlefield", "legend"].includes(c.type) &&
+      .filter(
+        (c) =>
+          c.type === "unit" &&
           !floatingIds.includes(c.id) &&
           !cardIds.includes(c.id)
-        );
-      })
+      )
       .sort(() => Math.random() - 0.5);
 
     const newCards = availableCards.slice(0, cardIds.length);
