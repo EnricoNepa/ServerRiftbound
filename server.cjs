@@ -201,7 +201,12 @@ io.on("connection", (socket) => {
 
       console.log(`🆔 Deck rinominato e mixato di ${nickname}:`, shuffled);
 
-      cardsByPlayer[nickname] = shuffled;
+      cardsByPlayer[nickname] = shuffled.map((card) => ({
+        ...card,
+        instanceId: `${nickname}-${Date.now()}-${Math.random()
+          .toString(36)
+          .slice(2, 6)}`,
+      }));
 
       console.log(
         `🎴 ${nickname} → deck mixato:`,
@@ -353,14 +358,13 @@ io.on("connection", (socket) => {
         .toString(36)
         .slice(2, 6)}`;
       state.floatingCards.push({
-        id: `${playerNickname}-${Date.now()}-${Math.random()
-          .toString(36)
-          .slice(2, 6)}`,
+        id: generatedId,
         card: { ...c, instanceId: generatedId },
         x,
         y: yBase - 50,
         owner: playerNickname,
       });
+
       x += 100;
     });
 
@@ -412,12 +416,10 @@ io.on("connection", (socket) => {
     const card = mainDeck[0];
 
     state.floatingCards.push({
-      id: `${playerNickname}-${Date.now()}-${Math.random()
-        .toString(36)
-        .slice(2, 6)}`,
-      card: card, // <-- fix qui
-      x: 1000,
-      y: 500,
+      id: generatedId,
+      card: { ...c, instanceId: generatedId },
+      x,
+      y: yBase - 50,
       owner: playerNickname,
     });
 
@@ -443,12 +445,10 @@ io.on("connection", (socket) => {
     const card = runeDeck[0];
 
     state.floatingCards.push({
-      id: `${playerNickname}-${Date.now()}-${Math.random()
-        .toString(36)
-        .slice(2, 6)}`,
-      card: card, // <-- fix qui
-      x: 300,
-      y: 500,
+      id: generatedId,
+      card: { ...c, instanceId: generatedId },
+      x,
+      y: yBase - 50,
       owner: playerNickname,
     });
 
