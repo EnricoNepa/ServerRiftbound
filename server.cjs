@@ -312,59 +312,61 @@ io.on("connection", (socket) => {
     }
   });
   socket.on("mulligan", ({ code, playerNickname, cardIds }) => {
-  const room = rooms[code];
-  if (!room || !room.lastGameState) return;
-  const state = room.lastGameState;
+    const room = rooms[code];
+    if (!room || !room.lastGameState) return;
+    const state = room.lastGameState;
 
-  console.log(`🔁 Mulligan ricevuto da ${playerNickname}:`, cardIds);
+    console.log(`🔁 Mulligan ricevuto da ${playerNickname}:`, cardIds);
 
-  const player = state.allPlayers.find((p) => p.nickname === playerNickname);
-  if (!player) return;
+    const player = state.allPlayers.find((p) => p.nickname === playerNickname);
+    if (!player) return;
 
-  // Rimuove le carte scartate dalla mano iniziale
-  state.floatingCards = state.floatingCards.filter(
-    (c) => !(c.owner === playerNickname && cardIds.includes(c.card.id))
-  );
+    // Rimuove le carte scartate dalla mano iniziale
+    state.floatingCards = state.floatingCards.filter(
+      (c) => !(c.owner === playerNickname && cardIds.includes(c.card.id))
+    );
 
-  const floatingIds = state.floatingCards
-    .filter((c) => c.owner === playerNickname)
-    .map((c) => c.card.id);
+    const floatingIds = state.floatingCards
+      .filter((c) => c.owner === playerNickname)
+      .map((c) => c.card.id);
 
-  // Pesca nuove carte SOLO di tipo unit o champion NON main
-  const availableCards = player.cards
-    .filter((c) =>
-      (c.type === "unit" || c.type === "champion") &&
-      c.metadata !== "main" &&
-      !floatingIds.includes(c.id) &&
-      !cardIds.includes(c.id)
-    )
-    .sort(() => Math.random() - 0.5);
+    // Pesca nuove carte SOLO di tipo unit o champion NON main
+    const availableCards = player.cards
+      .filter((c) => {
+        return (
+          (c.type === "unit" || c.type === "champion") &&
+          c.metadata !== "main" &&
+          !["rune", "battlefield", "legend"].includes(c.type) &&
+          !floatingIds.includes(c.id) &&
+          !cardIds.includes(c.id)
+        );
+      })
+      .sort(() => Math.random() - 0.5);
 
-  const newCards = availableCards.slice(0, cardIds.length);
+    const newCards = availableCards.slice(0, cardIds.length);
 
-  const yBase =
-    state.floatingCards.find((c) => c.owner === playerNickname)?.y || 500;
-  let x = 1000;
+    const yBase =
+      state.floatingCards.find((c) => c.owner === playerNickname)?.y || 500;
+    let x = 1000;
 
-  newCards.forEach((c) => {
-    const generatedId = `${playerNickname}-${Date.now()}-${Math.random()
-      .toString(36)
-      .slice(2, 6)}`;
-    state.floatingCards.push({
-      id: `${playerNickname}-${Date.now()}-${Math.random()
+    newCards.forEach((c) => {
+      const generatedId = `${playerNickname}-${Date.now()}-${Math.random()
         .toString(36)
-        .slice(2, 6)}`,
-      card: { ...c, instanceId: generatedId },
-      x,
-      y: yBase - 50,
-      owner: playerNickname,
+        .slice(2, 6)}`;
+      state.floatingCards.push({
+        id: `${playerNickname}-${Date.now()}-${Math.random()
+          .toString(36)
+          .slice(2, 6)}`,
+        card: { ...c, instanceId: generatedId },
+        x,
+        y: yBase - 50,
+        owner: playerNickname,
+      });
+      x += 100;
     });
-    x += 100;
+
+    syncGameStateToAll(code);
   });
-
-  syncGameStateToAll(code);
-});
-
 
   socket.on("disconnect", () => {
     const code = socket.data.roomCode;
