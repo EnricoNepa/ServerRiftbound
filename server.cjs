@@ -258,12 +258,11 @@ io.on("connection", (socket) => {
           .toString(36)
           .slice(2, 6)}`;
         c.instanceId = generatedId;
-
-        // Salva anche in player.cards l'instanceId aggiornato
-        const cardInDeck = player.deck.cards.find(
-          (card) => card.id === c.id && !card.instanceId
-        );
-        if (cardInDeck) cardInDeck.instanceId = generatedId;
+        // Aggiorna il deck del player con il nuovo instanceId
+        const originalIndex = player.deck.cards.findIndex((card) => card === c);
+        if (originalIndex !== -1) {
+          player.deck.cards[originalIndex].instanceId = generatedId;
+        }
 
         floatingCards.push({
           id: generatedId,
