@@ -302,14 +302,18 @@ io.on("connection", (socket) => {
         floatingCards
       );
       room.lastGameState = {
-        floatingCards, // salva solo la versione grezza, non personalizzata
+        floatingCards,
         allPlayers: playersArray.map(([_, p]) => ({
           nickname: p.nickname,
           name: p.deck.name,
-          cards: cardsByPlayer[p.nickname],
+          cards: p.deck.cards, // usa il deck aggiornato con instanceId
         })),
         roomCode: code,
       };
+      console.log(
+        "🧠 Stato centrale floatingCards:",
+        room.lastGameState.floatingCards.map((c) => c.owner)
+      );
 
       // Invia a ogni player la versione personalizzata
       s.emit("start-game", {
