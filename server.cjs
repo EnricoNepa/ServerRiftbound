@@ -328,11 +328,15 @@ io.on("connection", (socket) => {
 
     // Pesca nuove carte per rimpiazzare le scartate
     const floatingIds = state.floatingCards.map((c) => c.card.id);
-    const deck = player.cards.filter(
-      (c) =>
-        (c.type === "unit" || c.type === "champion") &&
-        !floatingIds.includes(c.id)
-    );
+    const deck = player.cards
+      .filter(
+        (c) =>
+          (c.type === "unit" || c.type === "champion") &&
+          !(c.metadata === "main") && // Esclude champion main
+          !["battlefield", "legend", "rune"].includes(c.type) && // Esclude extra
+          !floatingIds.includes(c.id)
+      )
+      .sort(() => Math.random() - 0.5); // Mischia il mazzo
 
     const newCards = deck.slice(0, cardIds.length);
     const yBase =
