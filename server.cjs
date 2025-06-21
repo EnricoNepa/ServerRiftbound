@@ -331,12 +331,10 @@ io.on("connection", (socket) => {
     const deck = player.cards
       .filter(
         (c) =>
-          (c.type === "unit" || c.type === "champion") &&
-          !(c.metadata === "main") && // Esclude champion main
-          !["battlefield", "legend", "rune"].includes(c.type) && // Esclude extra
+          c.type === "unit" && // solo unità normali
           !floatingIds.includes(c.id)
       )
-      .sort(() => Math.random() - 0.5); // Mischia il mazzo
+      .sort(() => Math.random() - 0.5);
 
     const newCards = deck.slice(0, cardIds.length);
     const yBase =
