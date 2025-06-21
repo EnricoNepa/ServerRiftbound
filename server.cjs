@@ -336,76 +336,76 @@ io.on("connection", (socket) => {
     }
   });
   socket.on("mulligan", ({ code, playerNickname, cardIds }) => {
-    const room = rooms[code];
-    if (!room || !room.lastGameState) return;
-    const state = room.lastGameState;
+  const room = rooms[code];
+  if (!room || !room.lastGameState) return;
+  const state = room.lastGameState;
+  const player = state.allPlayers.find((p) => p.nickname === playerNickname);
+  if (!player) return;
 
-    console.log(`🔁 Mulligan ricevuto da ${playerNickname}:`, cardIds);
-    console.log(`🧾 Carte in mano PRIMA del filter:`);
-    state.floatingCards
-      .filter((c) => c.owner === playerNickname)
-      .forEach((c) => console.log(`${c.card.name} → ${c.card.instanceId}`));
+  // 🔹1. Rimuovi tutte le carte di tipo unit/champion non-main dalla floatingCards (mano)
+  state.floatingCards = state.floatingCards.filter(
+    (c) =>
+      !(
+        c.owner === playerNickname &&
+        (c.card.type === "unit" || c.card.type === "champion") &&
+        c.card.metadata !== "main"
+      )
+  );
 
-    const player = state.allPlayers.find((p) => p.nickname === playerNickname);
-    if (!player) return;
+  // 🔹2. Trova carte da tenere (quelle NON nel mulligan)
+  const cardsToKeep = player.cards.filter(
+    (c) =>
+      (c.type === "unit" || c.type === "champion") &&
+      c.metadata !== "main" &&
+      !cardIds.includes(c.instanceId)
+  );
 
-    // 1. Rimuove TUTTE le carte in mano del player
-    state.floatingCards = state.floatingCards.filter(
-      (c) =>
-        !(
-          c.owner === playerNickname &&
-          (c.card.type === "unit" || c.card.type === "champion") &&
-          c.card.metadata !== "main"
-        )
-    );
+  // 🔹3. Trova nuove carte da pescare (quelle che non sono già nella mano o nel mulligan)
+  const usedInstanceIds = new Set([
+    ...state.floatingCards.map((c) => c.card.instanceId),
+    ...cardsToKeep.map((c) => c.instanceId),
+    ...cardIds,
+  ]);
 
-    // 2. Trova carte da tenere (quelle NON mulligate)
-    const cardsToKeep = player.cards.filter(
+  const availableNew = player.cards
+    .filter(
       (c) =>
         (c.type === "unit" || c.type === "champion") &&
         c.metadata !== "main" &&
-        !cardIds.includes(c.instanceId)
-    );
+        !usedInstanceIds.has(c.instanceId)
+    )
+    .sort(() => Math.random() - 0.5)
+    .slice(0, cardIds.length);
 
-    // 3. Trova carte da pescare per sostituire quelle mulligate
-    const availableNew = player.cards
-      .filter(
-        (c) =>
-          (c.type === "unit" || c.type === "champion") &&
-          c.metadata !== "main" &&
-          !cardsToKeep.includes(c) &&
-          !cardIds.includes(c.instanceId)
-      )
-      .sort(() => Math.random() - 0.5);
+  const finalHand = [...cardsToKeep, ...availableNew];
 
-    const cardsToAdd = [
-      ...cardsToKeep,
-      ...availableNew.slice(0, cardIds.length),
-    ];
+  // 🔹4. Posiziona ordinatamente le 4 carte in mano
+  const yBase =
+    state.floatingCards.find((c) => c.owner === playerNickname)?.y || 500;
+  let x = 260;
 
-    // 4. Posiziona le 4 carte affiancate ordinatamente
-    const yBase =
-      state.floatingCards.find((c) => c.owner === playerNickname)?.y || 500;
-    let x = 260;
+  finalHand.forEach((c) => {
+    const generatedId = `${playerNickname}-${Date.now()}-${Math.random()
+      .toString(36)
+      .slice(2, 6)}`;
 
-    cardsToAdd.forEach((c) => {
-      const generatedId = `${playerNickname}-${Date.now()}-${Math.random()
-        .toString(36)
-        .slice(2, 6)}`;
+    // 🔸 Aggiorna instanceId reale nella copia per renderla unica
+    c.instanceId = generatedId;
 
-      state.floatingCards.push({
-        id: generatedId,
-        card: { ...c, instanceId: generatedId },
-        x,
-        y: yBase - 50,
-        owner: playerNickname,
-      });
-
-      x += 100;
+    state.floatingCards.push({
+      id: generatedId,
+      card: { ...c },
+      x,
+      y: yBase - 50,
+      owner: playerNickname,
     });
 
-    syncGameStateToAll(code);
+    x += 100;
   });
+
+  syncGameStateToAll(code);
+});
+
 
   socket.on("disconnect", () => {
     const code = socket.data.roomCode;
