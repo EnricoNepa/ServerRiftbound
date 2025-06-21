@@ -253,24 +253,31 @@ io.on("connection", (socket) => {
         x += 120;
       });
 
-      hand.forEach((c, i) => {
+      hand.forEach((originalCard) => {
         const generatedId = `${nickname}-${Date.now()}-${Math.random()
           .toString(36)
           .slice(2, 6)}`;
-        c.instanceId = generatedId;
-        // Aggiorna il deck del player con il nuovo instanceId
-        const originalIndex = player.deck.cards.findIndex((card) => card === c);
-        if (originalIndex !== -1) {
-          player.deck.cards[originalIndex].instanceId = generatedId;
+
+        // Copia separata per floatingCards
+        const cardCopy = { ...originalCard, instanceId: generatedId };
+
+        // Rimpiazza nel deck del player (trova per id e non per riferimento!)
+        const idx = player.deck.cards.findIndex(
+          (c) => c.id === originalCard.id && !c.instanceId
+        );
+        if (idx !== -1) {
+          player.deck.cards[idx] = cardCopy;
         }
 
         floatingCards.push({
           id: generatedId,
-          card: { ...c },
+          card: cardCopy,
           x,
           y: yBase - 50,
           owner: nickname,
         });
+
+        x += 100;
       });
     });
     for (const [socketId, player] of playersArray) {
@@ -353,11 +360,23 @@ io.on("connection", (socket) => {
     );
 
     // 🔹2. Trova carte da tenere (quelle NON nel mulligan)
-    const cardsToKeep = player.cards.filter(
-      (c) =>
-        (c.type === "unit" || c.type === "champion") &&
-        c.metadata !== "main" &&
-        !cardIds.includes(c.instanceId)
+    const cardsInHandBefore = new Set(
+      state.floatingCards
+        .filter(
+          (c) =>
+            c.owner === playerNickname &&
+            (c.card.type === "unit" || c.card.type === "champion") &&
+            c.card.metadata !== "main"
+        )
+        .map((c) => c.card.instanceId)
+    );
+
+    const cardsToKeep = Array.from(cardsInHandBefore).filter(
+      (id) => !cardIds.includes(id)
+    );
+
+    const cards = player.cards.filter((c) =>
+      cardsToKeep.includes(c.instanceId)
     );
 
     // 🔹3. Trova nuove carte da pescare (quelle che non sono già nella mano o nel mulligan)
