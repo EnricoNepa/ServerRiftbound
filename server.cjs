@@ -165,6 +165,201 @@ io.on("connection", (socket) => {
     }
   });
 
+  socket.on("start-game", ({ code }) => {
+    console.log("🎯 Handler start-game attivato per stanza", code);
+    const room = rooms[code];
+    if (!room) return;
+
+    // ❗ Verifica che entrambi abbiano un deck completo
+    const playersArray = Object.entries(room.players);
+    const allDecksReady = playersArray.every(
+      ([_, p]) => p.deck && Array.isArray(p.deck.cards)
+    );
+
+    if (!allDecksReady) {
+      console.warn("⛔️ Start-game bloccato: uno o più deck mancanti.");
+      return;
+    }
+
+    // Prepara setup sincronizzato per ogni giocatore
+    const floatingCards = [];
+    const cardsByPlayer = {};
+
+    const BOARD_HEIGHT = 855;
+    const yBaseBasso = BOARD_HEIGHT - 350; // parte bassa (es. 2485)
+    const yBaseAlto = 350; // parte alta
+
+    playersArray.forEach(([socketId, player], idx) => {
+      console.log("Numero di giocatori ready:", playersArray.length);
+      console.log(`🧩 Deck ricevuto da ${player.nickname}:`, player.deck);
+      const nickname = player.nickname;
+      const deck = player.deck;
+      console.log(`📦 Deck originale di ${nickname}:`, deck.cards);
+
+      const shuffled = [...deck.cards.map(cleanCard)]
+        .sort(() => Math.random() - 0.5)
+        .map((card) => {
+          const instanceId = `${nickname}-${Date.now()}-${Math.random()
+            .toString(36)
+            .slice(2, 6)}`;
+          return { ...card, instanceId };
+        });
+
+      console.log(`🆔 Deck rinominato e mixato di ${nickname}:`, shuffled);
+
+      cardsByPlayer[nickname] = shuffled;
+      player.deck.cards = shuffled;
+      console.log(`🔍 [${nickname}] Deck completo con instanceId:`);
+      shuffled.forEach((c) => console.log(`${c.name} → ${c.instanceId}`));
+
+      console.log(
+        `🎴 ${nickname} → deck mixato:`,
+        shuffled.map((c) => c.id)
+      );
+      const battlefield = shuffled.find((c) => c.type === "battlefield");
+      const legend = shuffled.find((c) => c.type === "legend");
+      const champion = shuffled.find(
+        (c) => c.type === "champion" && c.metadata === "main"
+      );
+
+      const units = shuffled.filter(
+        (c) =>
+          (c.type === "unit" || c.type === "champion") &&
+          !(champion && c.name === champion.name && c.metadata === "main")
+      );
+      let hand = [];
+
+      for (const c of shuffled) {
+        if (
+          (c.type === "unit" || c.type === "champion") &&
+          !(champion && c.name === champion.name && c.metadata === "main")
+        ) {
+          const generatedId = `${nickname}-${Date.now()}-${Math.random()
+            .toString(36)
+            .slice(2, 6)}`;
+          const cardCopy = { ...c, instanceId: generatedId };
+
+          // Sostituisci nel deck la carta originale con quella nuova
+          const idx = player.deck.cards.findIndex(
+            (card) => card.instanceId === c.instanceId
+          );
+          if (idx !== -1) {
+            player.deck.cards[idx] = cardCopy;
+          }
+
+          hand.push(cardCopy);
+          if (hand.length === 4) break;
+        }
+      }
+
+      // idx === 0 => primo player => basso, idx === 1 => secondo player => alto
+      const yBase = idx === 0 ? yBaseBasso : yBaseAlto;
+      const generatedId = `${nickname}-${Date.now()}-${Math.random()
+        .toString(36)
+        .slice(2, 6)}`;
+      let x = 260;
+      [battlefield, champion, legend].filter(Boolean).forEach((c) => {
+        floatingCards.push({
+          id: `${nickname}-${Date.now()}-${Math.random()
+            .toString(36)
+            .slice(2, 6)}`,
+          card: { ...c, instanceId: generatedId },
+          x,
+          y: yBase - 50,
+          owner: nickname,
+        });
+        x += 120;
+      });
+
+      hand.forEach((originalCard) => {
+        const generatedId = `${nickname}-${Date.now()}-${Math.random()
+          .toString(36)
+          .slice(2, 6)}`;
+
+        // Copia separata per floatingCards
+        const cardCopy = { ...originalCard, instanceId: generatedId };
+
+        // Rimpiazza nel deck del player (trova per id e non per riferimento!)
+        const idx = player.deck.cards.findIndex(
+          (c) => c.id === originalCard.id && !c.instanceId
+        );
+        if (idx !== -1) {
+          player.deck.cards[idx] = cardCopy;
+        }
+
+        floatingCards.push({
+          id: generatedId,
+          card: cardCopy,
+          x,
+          y: yBase - 50,
+          owner: nickname,
+        });
+
+        x += 100;
+      });
+    });
+    for (const [socketId, player] of playersArray) {
+      const s = io.sockets.sockets.get(socketId);
+      if (!s) continue;
+      const thisPlayerNickname = player.nickname;
+      console.log("📤 Preparazione start-game per:", thisPlayerNickname);
+      floatingCards.forEach((card) => {
+        console.log(
+          "🃏 card.owner:",
+          card.owner,
+          "→",
+          card.owner === thisPlayerNickname ? "local" : "opponent"
+        );
+      });
+      const personalizedFloatingCards = floatingCards.map((card) => {
+        // Se la carta è del player corrente
+        if (card.owner === thisPlayerNickname) {
+          return { ...card, owner: "local" };
+        } else {
+          return { ...card, owner: "opponent" };
+        }
+      });
+
+      console.log(
+        "floatingCards generato:",
+        floatingCards.length,
+        floatingCards
+      );
+      room.lastGameState = {
+        floatingCards,
+        allPlayers: playersArray.map(([_, p]) => {
+          console.log(`🧪 [${p.nickname}] Deck salvato in allPlayers:`);
+          p.deck.cards.forEach((c) =>
+            console.log(`${c.name} → ${c.instanceId}`)
+          );
+          return {
+            nickname: p.nickname,
+            name: p.deck.name,
+            cards: p.deck.cards,
+          };
+        }),
+        roomCode: code,
+      };
+
+      console.log(
+        "🧠 Stato centrale floatingCards:",
+        room.lastGameState.floatingCards.map((c) => c.owner)
+      );
+
+      // Invia a ogni player la versione personalizzata
+      s.emit("start-game", {
+        ...room.lastGameState,
+        floatingCards: personalizedFloatingCards,
+        deck: {
+          nickname: player.nickname,
+          name: player.deck.name,
+          cards: cardsByPlayer[player.nickname],
+        },
+      });
+
+      console.log("Emit start-game TO", player.nickname);
+    }
+  });
   socket.on("mulligan", ({ code, playerNickname, cardIds }) => {
     const room = rooms[code];
     if (!room || !room.lastGameState) return;
@@ -249,202 +444,7 @@ io.on("connection", (socket) => {
 
     if (allDone) {
       console.log("✅ Entrambi hanno fatto mulligan, continua la partita");
-      // Emetti un evento per dire ai client che tutto è pronto (opzionale)
-      socket.on("start-game", ({ code }) => {
-        console.log("🎯 Handler start-game attivato per stanza", code);
-        const room = rooms[code];
-        if (!room) return;
-
-        // ❗ Verifica che entrambi abbiano un deck completo
-        const playersArray = Object.entries(room.players);
-        const allDecksReady = playersArray.every(
-          ([_, p]) => p.deck && Array.isArray(p.deck.cards)
-        );
-
-        if (!allDecksReady) {
-          console.warn("⛔️ Start-game bloccato: uno o più deck mancanti.");
-          return;
-        }
-
-        // Prepara setup sincronizzato per ogni giocatore
-        const floatingCards = [];
-        const cardsByPlayer = {};
-
-        const BOARD_HEIGHT = 855;
-        const yBaseBasso = BOARD_HEIGHT - 350; // parte bassa (es. 2485)
-        const yBaseAlto = 350; // parte alta
-
-        playersArray.forEach(([socketId, player], idx) => {
-          console.log("Numero di giocatori ready:", playersArray.length);
-          console.log(`🧩 Deck ricevuto da ${player.nickname}:`, player.deck);
-          const nickname = player.nickname;
-          const deck = player.deck;
-          console.log(`📦 Deck originale di ${nickname}:`, deck.cards);
-
-          const shuffled = [...deck.cards.map(cleanCard)]
-            .sort(() => Math.random() - 0.5)
-            .map((card) => {
-              const instanceId = `${nickname}-${Date.now()}-${Math.random()
-                .toString(36)
-                .slice(2, 6)}`;
-              return { ...card, instanceId };
-            });
-
-          console.log(`🆔 Deck rinominato e mixato di ${nickname}:`, shuffled);
-
-          cardsByPlayer[nickname] = shuffled;
-          player.deck.cards = shuffled;
-          console.log(`🔍 [${nickname}] Deck completo con instanceId:`);
-          shuffled.forEach((c) => console.log(`${c.name} → ${c.instanceId}`));
-
-          console.log(
-            `🎴 ${nickname} → deck mixato:`,
-            shuffled.map((c) => c.id)
-          );
-          const battlefield = shuffled.find((c) => c.type === "battlefield");
-          const legend = shuffled.find((c) => c.type === "legend");
-          const champion = shuffled.find(
-            (c) => c.type === "champion" && c.metadata === "main"
-          );
-
-          const units = shuffled.filter(
-            (c) =>
-              (c.type === "unit" || c.type === "champion") &&
-              !(champion && c.name === champion.name && c.metadata === "main")
-          );
-          let hand = [];
-
-          for (const c of shuffled) {
-            if (
-              (c.type === "unit" || c.type === "champion") &&
-              !(champion && c.name === champion.name && c.metadata === "main")
-            ) {
-              const generatedId = `${nickname}-${Date.now()}-${Math.random()
-                .toString(36)
-                .slice(2, 6)}`;
-              const cardCopy = { ...c, instanceId: generatedId };
-
-              // Sostituisci nel deck la carta originale con quella nuova
-              const idx = player.deck.cards.findIndex(
-                (card) => card.instanceId === c.instanceId
-              );
-              if (idx !== -1) {
-                player.deck.cards[idx] = cardCopy;
-              }
-
-              hand.push(cardCopy);
-              if (hand.length === 4) break;
-            }
-          }
-
-          // idx === 0 => primo player => basso, idx === 1 => secondo player => alto
-          const yBase = idx === 0 ? yBaseBasso : yBaseAlto;
-          const generatedId = `${nickname}-${Date.now()}-${Math.random()
-            .toString(36)
-            .slice(2, 6)}`;
-          let x = 260;
-          [battlefield, champion, legend].filter(Boolean).forEach((c) => {
-            floatingCards.push({
-              id: `${nickname}-${Date.now()}-${Math.random()
-                .toString(36)
-                .slice(2, 6)}`,
-              card: { ...c, instanceId: generatedId },
-              x,
-              y: yBase - 50,
-              owner: nickname,
-            });
-            x += 120;
-          });
-
-          hand.forEach((originalCard) => {
-            const generatedId = `${nickname}-${Date.now()}-${Math.random()
-              .toString(36)
-              .slice(2, 6)}`;
-
-            // Copia separata per floatingCards
-            const cardCopy = { ...originalCard, instanceId: generatedId };
-
-            // Rimpiazza nel deck del player (trova per id e non per riferimento!)
-            const idx = player.deck.cards.findIndex(
-              (c) => c.id === originalCard.id && !c.instanceId
-            );
-            if (idx !== -1) {
-              player.deck.cards[idx] = cardCopy;
-            }
-
-            floatingCards.push({
-              id: generatedId,
-              card: cardCopy,
-              x,
-              y: yBase - 50,
-              owner: nickname,
-            });
-
-            x += 100;
-          });
-        });
-        for (const [socketId, player] of playersArray) {
-          const s = io.sockets.sockets.get(socketId);
-          if (!s) continue;
-          const thisPlayerNickname = player.nickname;
-          console.log("📤 Preparazione start-game per:", thisPlayerNickname);
-          floatingCards.forEach((card) => {
-            console.log(
-              "🃏 card.owner:",
-              card.owner,
-              "→",
-              card.owner === thisPlayerNickname ? "local" : "opponent"
-            );
-          });
-          const personalizedFloatingCards = floatingCards.map((card) => {
-            // Se la carta è del player corrente
-            if (card.owner === thisPlayerNickname) {
-              return { ...card, owner: "local" };
-            } else {
-              return { ...card, owner: "opponent" };
-            }
-          });
-
-          console.log(
-            "floatingCards generato:",
-            floatingCards.length,
-            floatingCards
-          );
-          room.lastGameState = {
-            floatingCards,
-            allPlayers: playersArray.map(([_, p]) => {
-              console.log(`🧪 [${p.nickname}] Deck salvato in allPlayers:`);
-              p.deck.cards.forEach((c) =>
-                console.log(`${c.name} → ${c.instanceId}`)
-              );
-              return {
-                nickname: p.nickname,
-                name: p.deck.name,
-                cards: p.deck.cards,
-              };
-            }),
-            roomCode: code,
-          };
-
-          console.log(
-            "🧠 Stato centrale floatingCards:",
-            room.lastGameState.floatingCards.map((c) => c.owner)
-          );
-
-          // Invia a ogni player la versione personalizzata
-          s.emit("start-game", {
-            ...room.lastGameState,
-            floatingCards: personalizedFloatingCards,
-            deck: {
-              nickname: player.nickname,
-              name: player.deck.name,
-              cards: cardsByPlayer[player.nickname],
-            },
-          });
-
-          console.log("Emit start-game TO", player.nickname);
-        }
-      });
+      startGame(code);
     }
 
     syncGameStateToAll(code);
