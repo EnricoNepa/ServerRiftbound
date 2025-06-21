@@ -226,13 +226,30 @@ io.on("connection", (socket) => {
           (c.type === "unit" || c.type === "champion") &&
           !(champion && c.name === champion.name && c.metadata === "main")
       );
-      const hand = shuffled
-        .filter(
-          (c) =>
-            (c.type === "unit" || c.type === "champion") &&
-            !(champion && c.name === champion.name && c.metadata === "main")
-        )
-        .slice(0, 4);
+      let hand = [];
+
+      for (const c of shuffled) {
+        if (
+          (c.type === "unit" || c.type === "champion") &&
+          !(champion && c.name === champion.name && c.metadata === "main")
+        ) {
+          const generatedId = `${nickname}-${Date.now()}-${Math.random()
+            .toString(36)
+            .slice(2, 6)}`;
+          const cardCopy = { ...c, instanceId: generatedId };
+
+          // Sostituisci nel deck la carta originale con quella nuova
+          const idx = player.deck.cards.findIndex(
+            (card) => card.instanceId === c.instanceId
+          );
+          if (idx !== -1) {
+            player.deck.cards[idx] = cardCopy;
+          }
+
+          hand.push(cardCopy);
+          if (hand.length === 4) break;
+        }
+      }
 
       // idx === 0 => primo player => basso, idx === 1 => secondo player => alto
       const yBase = idx === 0 ? yBaseBasso : yBaseAlto;
@@ -343,80 +360,81 @@ io.on("connection", (socket) => {
     }
   });
   socket.on("mulligan", ({ code, playerNickname, cardIds }) => {
-  const room = rooms[code];
-  if (!room || !room.lastGameState) return;
-  const state = room.lastGameState;
-  const player = state.allPlayers.find((p) => p.nickname === playerNickname);
-  if (!player) return;
+    const room = rooms[code];
+    if (!room || !room.lastGameState) return;
+    const state = room.lastGameState;
+    const player = state.allPlayers.find((p) => p.nickname === playerNickname);
+    if (!player) return;
 
-  // 1. Rimuove tutte le carte in mano (unit/champion non main)
-  state.floatingCards = state.floatingCards.filter(
-    (c) =>
-      !(
-        c.owner === playerNickname &&
-        (c.card.type === "unit" || c.card.type === "champion") &&
-        c.card.metadata !== "main"
-      )
-  );
+    // 1. Rimuove tutte le carte in mano (unit/champion non main)
+    state.floatingCards = state.floatingCards.filter(
+      (c) =>
+        !(
+          c.owner === playerNickname &&
+          (c.card.type === "unit" || c.card.type === "champion") &&
+          c.card.metadata !== "main"
+        )
+    );
 
-  // 2. Recupera le carte tenute (non scartate)
-  const cardsToKeep = player.cards.filter(
-    (c) =>
-      (c.type === "unit" || c.type === "champion") &&
-      c.metadata !== "main" &&
-      cardIds.includes(c.instanceId) === false
-  );
-
-  // 3. Prende nuove carte dal mazzo (che non sono già state usate)
-  const usedIds = new Set([
-    ...cardsToKeep.map((c) => c.instanceId),
-    ...cardIds,
-    ...state.floatingCards.map((c) => c.card.instanceId),
-  ]);
-
-  const availableNewCards = player.cards
-    .filter(
+    // 2. Recupera le carte tenute (non scartate)
+    const cardsToKeep = player.cards.filter(
       (c) =>
         (c.type === "unit" || c.type === "champion") &&
         c.metadata !== "main" &&
-        !usedIds.has(c.instanceId)
-    )
-    .sort(() => Math.random() - 0.5)
-    .slice(0, cardIds.length);
+        cardIds.includes(c.instanceId) === false
+    );
 
-  const finalHand = [...cardsToKeep, ...availableNewCards];
+    // 3. Prende nuove carte dal mazzo (che non sono già state usate)
+    const usedIds = new Set([
+      ...cardsToKeep.map((c) => c.instanceId),
+      ...cardIds,
+      ...state.floatingCards.map((c) => c.card.instanceId),
+    ]);
 
-  // 4. Posiziona ordinatamente da sinistra
-  const yBase =
-    state.floatingCards.find((c) => c.owner === playerNickname)?.y || 500;
-  let x = 260;
+    const availableNewCards = player.cards
+      .filter(
+        (c) =>
+          (c.type === "unit" || c.type === "champion") &&
+          c.metadata !== "main" &&
+          !usedIds.has(c.instanceId)
+      )
+      .sort(() => Math.random() - 0.5)
+      .slice(0, cardIds.length);
 
-  finalHand.forEach((c) => {
-    const generatedId = `${playerNickname}-${Date.now()}-${Math.random()
-      .toString(36)
-      .slice(2, 6)}`;
+    const finalHand = [...cardsToKeep, ...availableNewCards];
 
-    // Sostituisci nel mazzo con la nuova copia aggiornata
-    const updatedCard = { ...c, instanceId: generatedId };
-    const index = player.cards.findIndex((card) => card.instanceId === c.instanceId);
-    if (index !== -1) {
-      player.cards[index] = updatedCard;
-    }
+    // 4. Posiziona ordinatamente da sinistra
+    const yBase =
+      state.floatingCards.find((c) => c.owner === playerNickname)?.y || 500;
+    let x = 260;
 
-    state.floatingCards.push({
-      id: generatedId,
-      card: updatedCard,
-      x,
-      y: yBase - 50,
-      owner: playerNickname,
+    finalHand.forEach((c) => {
+      const generatedId = `${playerNickname}-${Date.now()}-${Math.random()
+        .toString(36)
+        .slice(2, 6)}`;
+
+      // Sostituisci nel mazzo con la nuova copia aggiornata
+      const updatedCard = { ...c, instanceId: generatedId };
+      const index = player.cards.findIndex(
+        (card) => card.instanceId === c.instanceId
+      );
+      if (index !== -1) {
+        player.cards[index] = updatedCard;
+      }
+
+      state.floatingCards.push({
+        id: generatedId,
+        card: updatedCard,
+        x,
+        y: yBase - 50,
+        owner: playerNickname,
+      });
+
+      x += 100;
     });
 
-    x += 100;
+    syncGameStateToAll(code);
   });
-
-  syncGameStateToAll(code);
-});
-
 
   socket.on("disconnect", () => {
     const code = socket.data.roomCode;
