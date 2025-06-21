@@ -303,13 +303,20 @@ io.on("connection", (socket) => {
       );
       room.lastGameState = {
         floatingCards,
-        allPlayers: playersArray.map(([_, p]) => ({
-          nickname: p.nickname,
-          name: p.deck.name,
-          cards: p.deck.cards, // usa il deck aggiornato con instanceId
-        })),
+        allPlayers: playersArray.map(([_, p]) => {
+          console.log(`🧪 [${p.nickname}] Deck salvato in allPlayers:`);
+          p.deck.cards.forEach((c) =>
+            console.log(`${c.name} → ${c.instanceId}`)
+          );
+          return {
+            nickname: p.nickname,
+            name: p.deck.name,
+            cards: p.deck.cards,
+          };
+        }),
         roomCode: code,
       };
+
       console.log(`🧪 [DEBUG] player.deck.cards salvato per ${p.nickname}:`);
       cardsByPlayer[p.nickname].forEach((c) =>
         console.log(`${c.name} → ${c.instanceId}`)
