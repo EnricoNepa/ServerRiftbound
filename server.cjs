@@ -329,7 +329,12 @@ io.on("connection", (socket) => {
     // Rimuove le carte scartate dalla mano iniziale
     state.floatingCards = state.floatingCards.filter(
       (c) =>
-        !(c.owner === playerNickname && cardIds.includes(c.card.instanceId))
+        !(
+          c.owner === playerNickname &&
+          cardIds.includes(c.card.instanceId) &&
+          (c.card.type === "unit" || c.card.type === "champion") &&
+          c.card.metadata !== "main"
+        )
     );
 
     const floatingIds = state.floatingCards
