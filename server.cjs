@@ -20,17 +20,17 @@ const io = new Server(server, {
   },
 });
 
-const rooms = {}; // { [roomCode]: { hostId, players: { [socketId]: { nickname, ready, deck, hasMulliganned } }, lastGameState } }
+const rooms = {}; // roomCode -> { hostId, players, lastGameState }
 
 io.on("connection", (socket) => {
   socket.on("create-room", ({ nickname }) => {
-    const generateCode = (length = 3) => {
+    const generateCode = () => {
       const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ123456789";
-      let result = "";
-      for (let i = 0; i < length; i++) {
-        result += chars.charAt(Math.floor(Math.random() * chars.length));
+      let code = "";
+      for (let i = 0; i < 3; i++) {
+        code += chars[Math.floor(Math.random() * chars.length)];
       }
-      return result;
+      return code;
     };
 
     let code;
@@ -45,10 +45,12 @@ io.on("connection", (socket) => {
           nickname,
           ready: false,
           deck: null,
+          deckName: null,
           hasMulliganned: false,
         },
       },
     };
+
     socket.join(code);
     socket.data.roomCode = code;
     socket.data.nickname = nickname;
@@ -56,7 +58,6 @@ io.on("connection", (socket) => {
     emitRoomPlayers(code);
     io.to(code).emit("room-ready", { code });
   });
-
   socket.on("join-room", ({ nickname, code }) => {
     const room = rooms[code];
     if (!room || Object.keys(room.players).length >= 2) {
@@ -68,8 +69,10 @@ io.on("connection", (socket) => {
       nickname,
       ready: false,
       deck: null,
+      deckName: null,
       hasMulliganned: false,
     };
+
     socket.join(code);
     socket.data.roomCode = code;
     socket.data.nickname = nickname;
@@ -81,29 +84,14 @@ io.on("connection", (socket) => {
     }
   });
 
-  socket.on("leave-room", ({ code, nickname }) => {
+  socket.on("player-ready", ({ code, nickname, deck, ready, deckName }) => {
     const room = rooms[code];
-    if (!room) return;
-
-    delete room.players[socket.id];
-    socket.leave(code);
-    if (room.hostId === socket.id) {
-      const remaining = Object.keys(room.players);
-      room.hostId = remaining[0] || null;
-    }
-
-    if (Object.keys(room.players).length === 0) {
-      delete rooms[code];
-    } else {
+    if (room && room.players[socket.id]) {
+      room.players[socket.id].ready = ready;
+      room.players[socket.id].deck = deck;
+      room.players[socket.id].deckName = deckName || deck?.name;
       emitRoomPlayers(code);
     }
-  });
-  socket.on("player-ready", ({ code, nickname, deck, ready }) => {
-    const room = rooms[code];
-    if (!room || !room.players[socket.id]) return;
-    room.players[socket.id].ready = ready;
-    room.players[socket.id].deck = deck;
-    emitRoomPlayers(code);
   });
 
   socket.on("start-game", ({ code }) => {
@@ -112,24 +100,27 @@ io.on("connection", (socket) => {
 
     const playersArray = Object.entries(room.players);
     const allDecksReady = playersArray.every(
-      ([_, p]) => p.ready && p.deck && Array.isArray(p.deck.cards)
+      ([, p]) => p.deck && Array.isArray(p.deck.cards)
     );
-    if (!allDecksReady) return;
+    if (!allDecksReady) {
+      return;
+    }
 
-    // Inizializza allPlayers e mescola i deck
-    const allPlayers = playersArray.map(([_, p]) => {
-      const shuffled = [...p.deck.cards.map(cleanCard)]
+    const allPlayers = playersArray.map(([socketId, player]) => {
+      const shuffled = [...player.deck.cards.map(cleanCard)]
         .sort(() => Math.random() - 0.5)
         .map((card) => ({
           ...card,
-          instanceId: `${p.nickname}-${Date.now()}-${Math.random()
+          instanceId: `${player.nickname}-${Date.now()}-${Math.random()
             .toString(36)
             .slice(2, 6)}`,
         }));
-      p.deck.cards = shuffled;
+
+      player.deck.cards = shuffled;
+
       return {
-        nickname: p.nickname,
-        name: p.deck.name,
+        nickname: player.nickname,
+        name: player.deck.name,
         cards: shuffled,
       };
     });
@@ -140,10 +131,8 @@ io.on("connection", (socket) => {
       roomCode: code,
     };
 
-    // Ogni player vedrà solo le proprie carte (mulligan UI nel client)
-    syncGameStateToAll(code);
+    syncGameStateToAll(code); // Manda solo le 4 carte iniziali per mulligan (logica nel client)
   });
-
   socket.on("mulligan", ({ code, playerNickname, cardIds }) => {
     const room = rooms[code];
     if (!room || !room.lastGameState) return;
@@ -155,9 +144,11 @@ io.on("connection", (socket) => {
     const socketId = Object.entries(room.players).find(
       ([, p]) => p.nickname === playerNickname
     )?.[0];
-    if (socketId) room.players[socketId].hasMulliganned = true;
+    if (socketId) {
+      room.players[socketId].hasMulliganned = true;
+    }
 
-    // Rimuove carte dalla floating (unit/champion non-main)
+    // Rimuove le vecchie carte dalla floating (mano iniziale)
     state.floatingCards = state.floatingCards.filter(
       (c) =>
         !(
@@ -167,6 +158,7 @@ io.on("connection", (socket) => {
         )
     );
 
+    // Mantieni le carte non scartate
     const cardsToKeep = player.cards.filter(
       (c) =>
         (c.type === "unit" || c.type === "champion") &&
@@ -174,6 +166,7 @@ io.on("connection", (socket) => {
         !cardIds.includes(c.instanceId)
     );
 
+    // Pesca nuove carte per rimpiazzare quelle scartate
     const usedIds = new Set([
       ...cardsToKeep.map((c) => c.instanceId),
       ...cardIds,
@@ -201,11 +194,11 @@ io.on("connection", (socket) => {
         .slice(2, 6)}`;
       const updatedCard = { ...c, instanceId: generatedId };
 
-      const idx = player.cards.findIndex(
+      const index = player.cards.findIndex(
         (card) => card.instanceId === c.instanceId
       );
-      if (idx !== -1) {
-        player.cards[idx] = updatedCard;
+      if (index !== -1) {
+        player.cards[index] = updatedCard;
       }
 
       state.floatingCards.push({
@@ -226,6 +219,7 @@ io.on("connection", (socket) => {
 
     syncGameStateToAll(code);
   });
+
   function startGame(code) {
     const room = rooms[code];
     if (!room || !room.lastGameState) return;
@@ -301,26 +295,14 @@ io.on("connection", (socket) => {
       s.emit("start-game", {
         ...room.lastGameState,
         floatingCards: personalizedCards,
+        deck: {
+          nickname: nickname,
+          name: room.players[socketId].deck?.name,
+          cards: room.players[socketId].deck?.cards || [],
+        },
       });
     }
   }
-  socket.on("move-card", ({ code, cardInstance }) => {
-    const room = rooms[code];
-    if (!room || !room.lastGameState) return;
-
-    const cards = room.lastGameState.floatingCards;
-    const idx = cards.findIndex((c) => c.id === cardInstance.id);
-    if (idx !== -1) {
-      cards[idx] = {
-        ...cards[idx],
-        ...cardInstance,
-        owner: cards[idx].owner, // mantieni owner corretto
-      };
-    }
-
-    syncGameStateToAll(code);
-  });
-
   socket.on("draw-card", ({ code, playerNickname }) => {
     const room = rooms[code];
     if (!room || !room.lastGameState) return;
@@ -456,12 +438,9 @@ io.on("connection", (socket) => {
       nickname: p.nickname,
       ready: p.ready,
       isHost: id === room.hostId,
+      deckName: p.deck?.name || null,
     }));
     io.to(code).emit("room-players", players);
+    io.to(code).emit("player-update", players);
   }
-});
-
-const PORT = process.env.PORT || 4000;
-server.listen(PORT, () => {
-  console.log("Server running on port", PORT);
 });
