@@ -334,7 +334,11 @@ io.on("connection", (socket) => {
     const availableCards = player.cards
       .filter(
         (c) =>
-          c.type === "unit" &&
+          (c.type === "unit" || c.type === "champion") &&
+          c.metadata !== "main" &&
+          c.type !== "rune" &&
+          c.type !== "battlefield" &&
+          c.type !== "legend" &&
           !floatingIds.includes(c.id) &&
           !cardIds.includes(c.id)
       )
