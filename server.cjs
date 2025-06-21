@@ -323,12 +323,13 @@ io.on("connection", (socket) => {
 
     // Rimuove le carte scartate dalla mano iniziale
     state.floatingCards = state.floatingCards.filter(
-      (c) => !(c.owner === playerNickname && cardIds.includes(c.card.id))
+      (c) =>
+        !(c.owner === playerNickname && cardIds.includes(c.card.instanceId))
     );
 
     const floatingIds = state.floatingCards
       .filter((c) => c.owner === playerNickname)
-      .map((c) => c.card.id);
+      .map((c) => c.card.instanceId);
 
     // Pesca nuove carte SOLO di tipo unit o champion NON main
     const availableCards = player.cards
@@ -336,11 +337,8 @@ io.on("connection", (socket) => {
         (c) =>
           (c.type === "unit" || c.type === "champion") &&
           c.metadata !== "main" &&
-          c.type !== "rune" &&
-          c.type !== "battlefield" &&
-          c.type !== "legend" &&
-          !floatingIds.includes(c.id) &&
-          !cardIds.includes(c.id)
+          !floatingIds.includes(c.instanceId) &&
+          !cardIds.includes(c.instanceId)
       )
       .sort(() => Math.random() - 0.5);
 
