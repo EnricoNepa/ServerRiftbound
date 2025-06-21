@@ -615,10 +615,6 @@ io.on("connection", (socket) => {
       s.emit("start-game", {
         ...room.lastGameState,
         floatingCards: personalizedCards,
-        deck: {
-          ...room.lastGameState.deck,
-          nickname,
-        },
       });
     }
   }
