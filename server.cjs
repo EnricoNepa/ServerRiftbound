@@ -195,18 +195,18 @@ io.on("connection", (socket) => {
       const deck = player.deck;
       console.log(`📦 Deck originale di ${nickname}:`, deck.cards);
 
-      const shuffled = [...deck.cards.map(cleanCard)].sort(
-        () => Math.random() - 0.5
-      );
+      const shuffled = [...deck.cards.map(cleanCard)]
+        .sort(() => Math.random() - 0.5)
+        .map((card) => ({
+          ...card,
+          instanceId: `${nickname}-${Date.now()}-${Math.random()
+            .toString(36)
+            .slice(2, 6)}`,
+        }));
 
       console.log(`🆔 Deck rinominato e mixato di ${nickname}:`, shuffled);
 
-      cardsByPlayer[nickname] = shuffled.map((card) => ({
-        ...card,
-        instanceId: `${nickname}-${Date.now()}-${Math.random()
-          .toString(36)
-          .slice(2, 6)}`,
-      }));
+      cardsByPlayer[nickname] = shuffled;
 
       console.log(
         `🎴 ${nickname} → deck mixato:`,
