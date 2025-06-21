@@ -253,6 +253,15 @@ io.on("connection", (socket) => {
       const s = io.sockets.sockets.get(socketId);
       if (!s) continue;
       const thisPlayerNickname = player.nickname;
+      console.log("📤 Preparazione start-game per:", thisPlayerNickname);
+      floatingCards.forEach((card) => {
+        console.log(
+          "🃏 card.owner:",
+          card.owner,
+          "→",
+          card.owner === thisPlayerNickname ? "local" : "opponent"
+        );
+      });
       const personalizedFloatingCards = floatingCards.map((card) => {
         // Se la carta è del player corrente
         if (card.owner === thisPlayerNickname) {
