@@ -208,6 +208,8 @@ io.on("connection", (socket) => {
 
       cardsByPlayer[nickname] = shuffled;
       player.deck.cards = shuffled;
+      console.log(`🔍 [${nickname}] Deck completo con instanceId:`);
+      shuffled.forEach((c) => console.log(`${c.name} → ${c.instanceId}`));
 
       console.log(
         `🎴 ${nickname} → deck mixato:`,
@@ -255,11 +257,17 @@ io.on("connection", (socket) => {
         const generatedId = `${nickname}-${Date.now()}-${Math.random()
           .toString(36)
           .slice(2, 6)}`;
+        c.instanceId = generatedId;
+
+        // Salva anche in player.cards l'instanceId aggiornato
+        const cardInDeck = player.deck.cards.find(
+          (card) => card.id === c.id && !card.instanceId
+        );
+        if (cardInDeck) cardInDeck.instanceId = generatedId;
+
         floatingCards.push({
-          id: `${nickname}-${Date.now()}-${Math.random()
-            .toString(36)
-            .slice(2, 6)}`,
-          card: { ...c, instanceId: generatedId },
+          id: generatedId,
+          card: { ...c },
           x,
           y: yBase - 50,
           owner: nickname,
@@ -323,6 +331,10 @@ io.on("connection", (socket) => {
     const state = room.lastGameState;
 
     console.log(`🔁 Mulligan ricevuto da ${playerNickname}:`, cardIds);
+    console.log(`🧾 Carte in mano PRIMA del filter:`);
+    state.floatingCards
+      .filter((c) => c.owner === playerNickname)
+      .forEach((c) => console.log(`${c.card.name} → ${c.card.instanceId}`));
 
     const player = state.allPlayers.find((p) => p.nickname === playerNickname);
     if (!player) return;
@@ -347,6 +359,8 @@ io.on("connection", (socket) => {
           !cardIds.includes(c.instanceId)
       )
       .sort(() => Math.random() - 0.5);
+    console.log(`📥 Carte disponibili per nuova mano:`);
+    availableCards.forEach((c) => console.log(`${c.name} → ${c.instanceId}`));
 
     const newCards = availableCards.slice(0, cardIds.length);
 
