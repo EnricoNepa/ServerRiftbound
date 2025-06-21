@@ -116,6 +116,7 @@ io.on("connection", (socket) => {
       ready: false,
       deck: null,
       deckName: null,
+      hasMulliganned: false,
     };
     socket.join(code);
     socket.data.roomCode = code;
@@ -365,6 +366,13 @@ io.on("connection", (socket) => {
     const state = room.lastGameState;
     const player = state.allPlayers.find((p) => p.nickname === playerNickname);
     if (!player) return;
+    // Segna che ha completato il mulligan
+    const socketId = Object.entries(room.players).find(
+      ([, p]) => p.nickname === playerNickname
+    )?.[0];
+    if (socketId) {
+      room.players[socketId].hasMulliganned = true;
+    }
 
     // 1. Rimuove tutte le carte in mano (unit/champion non main)
     state.floatingCards = state.floatingCards.filter(
@@ -432,6 +440,12 @@ io.on("connection", (socket) => {
 
       x += 100;
     });
+    const allDone = Object.values(room.players).every((p) => p.hasMulliganned);
+
+    if (allDone) {
+      console.log("✅ Entrambi hanno fatto mulligan, continua la partita");
+      // Emetti un evento per dire ai client che tutto è pronto (opzionale)
+    }
 
     syncGameStateToAll(code);
   });
