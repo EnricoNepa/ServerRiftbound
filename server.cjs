@@ -24,7 +24,11 @@ const rooms = {}; // { [roomCode]: { hostId, players: { [socketId]: { nickname, 
 
 io.on("connection", (socket) => {
   socket.on("move-card", ({ code, cardInstance }) => {
-    console.log("📥 move-card ricevuto da:", socket.data.nickname, cardInstance);
+    console.log(
+      "📥 move-card ricevuto da:",
+      socket.data.nickname,
+      cardInstance
+    );
     const room = rooms[code];
     if (!room || !room.lastGameState) return;
 
@@ -195,7 +199,7 @@ io.on("connection", (socket) => {
 
       console.log(`🆔 Deck rinominato di ${nickname}:`, renamedCards);
 
-      cardsByPlayer[nickname] = renamedCards.map(cleanCard);
+      cardsByPlayer[nickname] = shuffled;
 
       const shuffled = [...renamedCards].sort(() => Math.random() - 0.5);
       console.log(
@@ -249,7 +253,6 @@ io.on("connection", (socket) => {
         });
       });
     });
-
     for (const [socketId, player] of playersArray) {
       const s = io.sockets.sockets.get(socketId);
       if (!s) continue;
