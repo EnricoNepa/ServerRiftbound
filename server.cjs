@@ -197,16 +197,17 @@ io.on("connection", (socket) => {
 
       const shuffled = [...deck.cards.map(cleanCard)]
         .sort(() => Math.random() - 0.5)
-        .map((card) => ({
-          ...card,
-          instanceId: `${nickname}-${Date.now()}-${Math.random()
+        .map((card) => {
+          const instanceId = `${nickname}-${Date.now()}-${Math.random()
             .toString(36)
-            .slice(2, 6)}`,
-        }));
+            .slice(2, 6)}`;
+          return { ...card, instanceId };
+        });
 
       console.log(`🆔 Deck rinominato e mixato di ${nickname}:`, shuffled);
 
       cardsByPlayer[nickname] = shuffled;
+      player.deck.cards = shuffled;
 
       console.log(
         `🎴 ${nickname} → deck mixato:`,
