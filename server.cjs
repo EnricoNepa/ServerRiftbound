@@ -317,11 +317,6 @@ io.on("connection", (socket) => {
         roomCode: code,
       };
 
-      console.log(`🧪 [DEBUG] player.deck.cards salvato per ${p.nickname}:`);
-      cardsByPlayer[p.nickname].forEach((c) =>
-        console.log(`${c.name} → ${c.instanceId}`)
-      );
-
       console.log(
         "🧠 Stato centrale floatingCards:",
         room.lastGameState.floatingCards.map((c) => c.owner)
