@@ -226,13 +226,30 @@ io.on("connection", (socket) => {
           (c.type === "unit" || c.type === "champion") &&
           !(champion && c.name === champion.name && c.metadata === "main")
       );
-      const hand = shuffled
-        .filter(
-          (c) =>
-            (c.type === "unit" || c.type === "champion") &&
-            !(champion && c.name === champion.name && c.metadata === "main")
-        )
-        .slice(0, 4);
+      let hand = [];
+
+      for (const c of shuffled) {
+        if (
+          (c.type === "unit" || c.type === "champion") &&
+          !(champion && c.name === champion.name && c.metadata === "main")
+        ) {
+          const generatedId = `${nickname}-${Date.now()}-${Math.random()
+            .toString(36)
+            .slice(2, 6)}`;
+          const cardCopy = { ...c, instanceId: generatedId };
+
+          // Sostituisci nel deck la carta originale con quella nuova
+          const idx = player.deck.cards.findIndex(
+            (card) => card.instanceId === c.instanceId
+          );
+          if (idx !== -1) {
+            player.deck.cards[idx] = cardCopy;
+          }
+
+          hand.push(cardCopy);
+          if (hand.length === 4) break;
+        }
+      }
 
       // idx === 0 => primo player => basso, idx === 1 => secondo player => alto
       const yBase = idx === 0 ? yBaseBasso : yBaseAlto;
@@ -349,7 +366,7 @@ io.on("connection", (socket) => {
     const player = state.allPlayers.find((p) => p.nickname === playerNickname);
     if (!player) return;
 
-    // 🔹1. Rimuovi tutte le carte di tipo unit/champion non-main dalla floatingCards (mano)
+    // 1. Rimuove tutte le carte in mano (unit/champion non main)
     state.floatingCards = state.floatingCards.filter(
       (c) =>
         !(
@@ -359,46 +376,34 @@ io.on("connection", (socket) => {
         )
     );
 
-    // 🔹2. Trova carte da tenere (quelle NON nel mulligan)
-    const cardsInHandBefore = new Set(
-      state.floatingCards
-        .filter(
-          (c) =>
-            c.owner === playerNickname &&
-            (c.card.type === "unit" || c.card.type === "champion") &&
-            c.card.metadata !== "main"
-        )
-        .map((c) => c.card.instanceId)
+    // 2. Recupera le carte tenute (non scartate)
+    const cardsToKeep = player.cards.filter(
+      (c) =>
+        (c.type === "unit" || c.type === "champion") &&
+        c.metadata !== "main" &&
+        cardIds.includes(c.instanceId) === false
     );
 
-    const cardsToKeep = Array.from(cardsInHandBefore).filter(
-      (id) => !cardIds.includes(id)
-    );
-
-    const cards = player.cards.filter((c) =>
-      cardsToKeep.includes(c.instanceId)
-    );
-
-    // 🔹3. Trova nuove carte da pescare (quelle che non sono già nella mano o nel mulligan)
-    const usedInstanceIds = new Set([
-      ...state.floatingCards.map((c) => c.card.instanceId),
+    // 3. Prende nuove carte dal mazzo (che non sono già state usate)
+    const usedIds = new Set([
       ...cardsToKeep.map((c) => c.instanceId),
       ...cardIds,
+      ...state.floatingCards.map((c) => c.card.instanceId),
     ]);
 
-    const availableNew = player.cards
+    const availableNewCards = player.cards
       .filter(
         (c) =>
           (c.type === "unit" || c.type === "champion") &&
           c.metadata !== "main" &&
-          !usedInstanceIds.has(c.instanceId)
+          !usedIds.has(c.instanceId)
       )
       .sort(() => Math.random() - 0.5)
       .slice(0, cardIds.length);
 
-    const finalHand = [...cardsToKeep, ...availableNew];
+    const finalHand = [...cardsToKeep, ...availableNewCards];
 
-    // 🔹4. Posiziona ordinatamente le 4 carte in mano
+    // 4. Posiziona ordinatamente da sinistra
     const yBase =
       state.floatingCards.find((c) => c.owner === playerNickname)?.y || 500;
     let x = 260;
@@ -408,18 +413,18 @@ io.on("connection", (socket) => {
         .toString(36)
         .slice(2, 6)}`;
 
-      // 🔸 Trova e aggiorna l’istanza originale nel mazzo
-      const indexInDeck = player.cards.findIndex(
+      // Sostituisci nel mazzo con la nuova copia aggiornata
+      const updatedCard = { ...c, instanceId: generatedId };
+      const index = player.cards.findIndex(
         (card) => card.instanceId === c.instanceId
       );
-      if (indexInDeck !== -1) {
-        player.cards[indexInDeck].instanceId = generatedId;
+      if (index !== -1) {
+        player.cards[index] = updatedCard;
       }
 
-      // 🔸 Push nella mano
       state.floatingCards.push({
         id: generatedId,
-        card: { ...c, instanceId: generatedId },
+        card: updatedCard,
         x,
         y: yBase - 50,
         owner: playerNickname,
