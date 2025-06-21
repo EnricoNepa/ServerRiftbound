@@ -218,7 +218,13 @@ io.on("connection", (socket) => {
           (c.type === "unit" || c.type === "champion") &&
           !(champion && c.name === champion.name && c.metadata === "main")
       );
-      const hand = units.slice(0, 4);
+      const hand = shuffled
+        .filter(
+          (c) =>
+            (c.type === "unit" || c.type === "champion") &&
+            !(champion && c.name === champion.name && c.metadata === "main")
+        )
+        .slice(0, 4);
 
       // idx === 0 => primo player => basso, idx === 1 => secondo player => alto
       const yBase = idx === 0 ? yBaseBasso : yBaseAlto;
