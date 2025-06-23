@@ -223,9 +223,7 @@ io.on("connection", (socket) => {
 
       const units = shuffled.filter(
         (c) =>
-          (c.type === "unit" ||
-            c.type === "champion" ||
-            c.type === "signature") &&
+          (c.type === "unit" || c.type === "champion") &&
           !(champion && c.name === champion.name && c.metadata === "main")
       );
 
