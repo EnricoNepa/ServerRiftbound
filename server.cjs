@@ -252,30 +252,17 @@ io.on("connection", (socket) => {
         x += 120;
       });
 
-      hand.forEach((originalCard) => {
-        const generatedId = `${nickname}-${Date.now()}-${Math.random()
+      hand.forEach((c) => {
+        const instanceId = `${nickname}-${Date.now()}-${Math.random()
           .toString(36)
           .slice(2, 6)}`;
-
-        // Copia separata per floatingCards
-        const cardCopy = { ...originalCard, instanceId: generatedId };
-
-        // Rimpiazza nel deck del player (trova per id e non per riferimento!)
-        const idx = player.deck.cards.findIndex(
-          (c) => c.id === originalCard.id && !c.instanceId
-        );
-        if (idx !== -1) {
-          player.deck.cards[idx] = cardCopy;
-        }
-
         floatingCards.push({
-          id: generatedId,
-          card: cardCopy,
+          id: instanceId,
+          card: { ...c, instanceId },
           x,
           y: yBase - 50,
           owner: nickname,
         });
-
         x += 100;
       });
     });
@@ -350,12 +337,12 @@ io.on("connection", (socket) => {
 
     // 1. Rimuove tutte le carte in mano (unit/champion non main)
     state.floatingCards = state.floatingCards.filter((c) => {
-      const isUnitOrChampion =
-        c.card.type === "unit" || c.card.type === "champion";
-      const isMain = c.card.metadata === "main";
       const isFromPlayer = c.owner === playerNickname;
-      const isDiscarded = !cardIds.includes(c.card.instanceId);
-      return !(isFromPlayer && isUnitOrChampion && !isMain && isDiscarded);
+      const isInHand =
+        (c.card.type === "unit" || c.card.type === "champion") &&
+        c.card.metadata !== "main";
+      const isBeingReplaced = !cardIds.includes(c.card.instanceId);
+      return !(isFromPlayer && isInHand && isBeingReplaced);
     });
 
     // 2. Recupera le carte tenute (non scartate)
