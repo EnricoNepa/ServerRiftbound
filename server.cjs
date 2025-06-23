@@ -450,9 +450,21 @@ io.on("connection", (socket) => {
     if (mainDeck.length === 0) return;
     const card = mainDeck[0];
 
+    const generatedId = `${playerNickname}-${Date.now()}-${Math.random()
+      .toString(36)
+      .slice(2, 6)}`;
+
+    const yBase =
+      state.floatingCards.find((c) => c.owner === playerNickname)?.y || 500;
+
+    let x =
+      260 +
+      state.floatingCards.filter((c) => c.owner === playerNickname).length *
+        100;
+
     state.floatingCards.push({
       id: generatedId,
-      card: { ...c, instanceId: generatedId },
+      card: { ...card, instanceId: generatedId },
       x,
       y: yBase - 50,
       owner: playerNickname,
@@ -469,19 +481,27 @@ io.on("connection", (socket) => {
     if (!player) return;
 
     const floatingIds = state.floatingCards
-      .filter(
-        (c) => c.owner === "local" && c.card.id.startsWith(playerNickname)
-      )
+      .filter((c) => c.owner === playerNickname)
       .map((c) => c.card.id);
     const runeDeck = player.cards.filter(
       (c) => c.type === "rune" && !floatingIds.includes(c.id)
     );
     if (runeDeck.length === 0) return;
+
     const card = runeDeck[0];
+    const generatedId = `${playerNickname}-${Date.now()}-${Math.random()
+      .toString(36)
+      .slice(2, 6)}`;
+    const yBase =
+      state.floatingCards.find((c) => c.owner === playerNickname)?.y || 500;
+    const x =
+      260 +
+      state.floatingCards.filter((c) => c.owner === playerNickname).length *
+        100;
 
     state.floatingCards.push({
       id: generatedId,
-      card: { ...c, instanceId: generatedId },
+      card: { ...card, instanceId: generatedId },
       x,
       y: yBase - 50,
       owner: playerNickname,
