@@ -226,30 +226,12 @@ io.on("connection", (socket) => {
           (c.type === "unit" || c.type === "champion") &&
           !(champion && c.name === champion.name && c.metadata === "main")
       );
-      let hand = [];
 
-      for (const c of shuffled) {
-        if (
-          (c.type === "unit" || c.type === "champion") &&
-          !(champion && c.name === champion.name && c.metadata === "main")
-        ) {
-          const generatedId = `${nickname}-${Date.now()}-${Math.random()
-            .toString(36)
-            .slice(2, 6)}`;
-          const cardCopy = { ...c, instanceId: generatedId };
-
-          // Sostituisci nel deck la carta originale con quella nuova
-          const idx = player.deck.cards.findIndex(
-            (card) => card.instanceId === c.instanceId
-          );
-          if (idx !== -1) {
-            player.deck.cards[idx] = cardCopy;
-          }
-
-          hand.push(cardCopy);
-          if (hand.length === 4) break;
-        }
-      }
+      const available = shuffled.filter(
+        (c) =>
+          (c.type === "unit" || c.type === "champion") && c.metadata !== "main"
+      );
+      const hand = available.slice(0, 4);
 
       // idx === 0 => primo player => basso, idx === 1 => secondo player => alto
       const yBase = idx === 0 ? yBaseBasso : yBaseAlto;
@@ -367,15 +349,14 @@ io.on("connection", (socket) => {
     if (!player) return;
 
     // 1. Rimuove tutte le carte in mano (unit/champion non main)
-    state.floatingCards = state.floatingCards.filter(
-      (c) =>
-        !(
-          c.owner === playerNickname &&
-          (c.card.type === "unit" || c.card.type === "champion") &&
-          c.card.metadata !== "main" &&
-          !cardIds.includes(c.card.instanceId)
-        )
-    );
+    state.floatingCards = state.floatingCards.filter((c) => {
+      const isUnitOrChampion =
+        c.card.type === "unit" || c.card.type === "champion";
+      const isMain = c.card.metadata === "main";
+      const isFromPlayer = c.owner === playerNickname;
+      const isDiscarded = !cardIds.includes(c.card.instanceId);
+      return !(isFromPlayer && isUnitOrChampion && !isMain && isDiscarded);
+    });
 
     // 2. Recupera le carte tenute (non scartate)
     const cardsToKeep = player.cards.filter(
