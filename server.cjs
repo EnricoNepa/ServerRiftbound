@@ -328,6 +328,7 @@ io.on("connection", (socket) => {
       console.log("Emit start-game TO", player.nickname);
     }
   });
+
   socket.on("mulligan", ({ code, playerNickname, cardIds }) => {
     const room = rooms[code];
     if (!room || !room.lastGameState) return;
@@ -335,30 +336,31 @@ io.on("connection", (socket) => {
     const player = state.allPlayers.find((p) => p.nickname === playerNickname);
     if (!player) return;
 
-    // 1. Rimuove tutte le carte in mano (unit/champion non main)
-    state.floatingCards = state.floatingCards.filter((c) => {
-      const isFromPlayer = c.owner === playerNickname;
-      const isInHand =
-        (c.card.type === "unit" || c.card.type === "champion") &&
-        c.card.metadata !== "main";
-      return !(isFromPlayer && isInHand);
-    });
-
-    // 2. Recupera le carte NON selezionate per il mulligan (cioè da tenere)
-    const cardsToKeep = player.cards.filter(
+    // 1. Trova tutte le carte in mano PRIMA del mulligan
+    const handBefore = state.floatingCards.filter(
       (c) =>
-        (c.type === "unit" || c.type === "champion") &&
-        c.metadata !== "main" &&
-        !cardIds.includes(c.instanceId)
+        c.owner === playerNickname &&
+        (c.card.type === "unit" || c.card.type === "champion") &&
+        c.card.metadata !== "main"
     );
 
-    // 3. Prende nuove carte dal mazzo (che non sono già state usate)
+    // 2. Rimuovi TUTTE le carte della mano corrente
+    state.floatingCards = state.floatingCards.filter(
+      (c) => !handBefore.includes(c)
+    );
+
+    // 3. Dividi tra carte da tenere e da sostituire
+    const cardsToKeep = handBefore
+      .filter((c) => !cardIds.includes(c.card.instanceId))
+      .map((c) => c.card);
+
+    // 4. Calcola ID già usati (per evitare duplicati)
     const usedIds = new Set([
-      ...cardsToKeep.map((c) => c.instanceId),
-      ...cardIds,
       ...state.floatingCards.map((c) => c.card.instanceId),
+      ...cardsToKeep.map((c) => c.instanceId),
     ]);
 
+    // 5. Pesca nuove carte dal mazzo (escludendo quelle già in uso)
     const availableNewCards = player.cards
       .filter(
         (c) =>
@@ -369,20 +371,20 @@ io.on("connection", (socket) => {
       .sort(() => Math.random() - 0.5)
       .slice(0, cardIds.length);
 
-    const finalHand = [...cardsToKeep, ...availableNewCards];
+    const newHand = [...cardsToKeep, ...availableNewCards];
 
-    // 4. Posiziona ordinatamente da sinistra
+    // 6. Aggiungi alla board
     const yBase =
       state.floatingCards.find((c) => c.owner === playerNickname)?.y || 500;
     let x = 260;
 
-    finalHand.forEach((c) => {
+    newHand.forEach((c) => {
       const generatedId = `${playerNickname}-${Date.now()}-${Math.random()
         .toString(36)
         .slice(2, 6)}`;
-
-      // Sostituisci nel mazzo con la nuova copia aggiornata
       const updatedCard = { ...c, instanceId: generatedId };
+
+      // Aggiorna nel deck del player
       const index = player.cards.findIndex(
         (card) => card.instanceId === c.instanceId
       );
