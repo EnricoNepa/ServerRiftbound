@@ -265,6 +265,14 @@ io.on("connection", (socket) => {
         });
         x += 100;
       });
+      hand.forEach((c) => {
+        const index = player.deck.cards.findIndex(
+          (card) => card.instanceId === c.instanceId
+        );
+        if (index !== -1) {
+          player.deck.cards.splice(index, 1);
+        }
+      });
     });
     for (const [socketId, player] of playersArray) {
       const s = io.sockets.sockets.get(socketId);
