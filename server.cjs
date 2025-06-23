@@ -341,7 +341,7 @@ io.on("connection", (socket) => {
       const isInHand =
         (c.card.type === "unit" || c.card.type === "champion") &&
         c.card.metadata !== "main";
-      return !(isFromPlayer && isInHand && isBeingReplaced);
+      return !(isFromPlayer && isInHand);
     });
 
     // 2. Recupera le carte tenute (non scartate)
