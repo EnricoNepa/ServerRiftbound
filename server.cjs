@@ -341,7 +341,6 @@ io.on("connection", (socket) => {
       const isInHand =
         (c.card.type === "unit" || c.card.type === "champion") &&
         c.card.metadata !== "main";
-      const isBeingReplaced = !cardIds.includes(c.card.instanceId);
       return !(isFromPlayer && isInHand && isBeingReplaced);
     });
 
@@ -350,7 +349,7 @@ io.on("connection", (socket) => {
       (c) =>
         (c.type === "unit" || c.type === "champion") &&
         c.metadata !== "main" &&
-        cardIds.includes(c.instanceId) === false
+        cardIds.includes(c.instanceId)
     );
 
     // 3. Prende nuove carte dal mazzo (che non sono già state usate)
