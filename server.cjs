@@ -469,6 +469,13 @@ io.on("connection", (socket) => {
       y: yBase - 50,
       owner: playerNickname,
     });
+    // Rimuovi la carta pescata dal mazzo del player
+    const cardIndex = player.cards.findIndex(
+      (c) => c.instanceId === card.instanceId
+    );
+    if (cardIndex !== -1) {
+      player.cards.splice(cardIndex, 1);
+    }
 
     syncGameStateToAll(code);
   });
@@ -508,6 +515,13 @@ io.on("connection", (socket) => {
       y: yBase - 50,
       owner: playerNickname,
     });
+    // Rimuovi la carta pescata dal mazzo del player
+    const cardIndex = player.cards.findIndex(
+      (c) => c.instanceId === card.instanceId
+    );
+    if (cardIndex !== -1) {
+      player.cards.splice(cardIndex, 1);
+    }
 
     syncGameStateToAll(code);
   });
