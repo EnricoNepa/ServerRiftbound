@@ -372,7 +372,8 @@ io.on("connection", (socket) => {
         !(
           c.owner === playerNickname &&
           (c.card.type === "unit" || c.card.type === "champion") &&
-          c.card.metadata !== "main"
+          c.card.metadata !== "main" &&
+          !cardIds.includes(c.card.instanceId)
         )
     );
 
