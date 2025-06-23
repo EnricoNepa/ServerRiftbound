@@ -223,13 +223,17 @@ io.on("connection", (socket) => {
 
       const units = shuffled.filter(
         (c) =>
-          (c.type === "unit" || c.type === "champion") &&
+          (c.type === "unit" ||
+            c.type === "champion" ||
+            c.type === "signature") &&
           !(champion && c.name === champion.name && c.metadata === "main")
       );
 
       const available = shuffled.filter(
         (c) =>
-          (c.type === "unit" || c.type === "champion") && c.metadata !== "main"
+          (c.type === "unit" || c.type === "champion") &&
+          c.metadata !== "main" &&
+          c.metadata !== "signature"
       );
       const hand = available.slice(0, 4);
 
@@ -356,6 +360,13 @@ io.on("connection", (socket) => {
     state.floatingCards = state.floatingCards.filter(
       (c) => !handBefore.includes(c)
     );
+    // Rimetti le carte scartate nel mazzo (quelle selezionate per il mulligan)
+    const discardedCards = handBefore.filter((c) =>
+      cardIds.includes(c.card.instanceId)
+    );
+    discardedCards.forEach((c) => {
+      player.cards.push(c.card);
+    });
 
     // 3. Dividi tra carte da tenere e da sostituire
     const cardsToKeep = handBefore
@@ -374,6 +385,7 @@ io.on("connection", (socket) => {
         (c) =>
           (c.type === "unit" || c.type === "champion") &&
           c.metadata !== "main" &&
+          c.metadata !== "signature" &&
           !usedIds.has(c.instanceId)
       )
       .sort(() => Math.random() - 0.5)
