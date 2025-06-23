@@ -229,10 +229,9 @@ io.on("connection", (socket) => {
 
       const available = shuffled.filter(
         (c) =>
-          (c.type === "unit" || c.type === "champion") &&
-          c.metadata !== "main" &&
-          c.metadata !== "signature"
+          (c.type === "unit" || c.type === "champion") && c.metadata !== "main"
       );
+
       const hand = available.slice(0, 4);
 
       // idx === 0 => primo player => basso, idx === 1 => secondo player => alto
@@ -363,7 +362,8 @@ io.on("connection", (socket) => {
       cardIds.includes(c.card.instanceId)
     );
     discardedCards.forEach((c) => {
-      player.cards.push(c.card);
+      const randIndex = Math.floor(Math.random() * (player.cards.length + 1));
+      player.cards.splice(randIndex, 0, c.card);
     });
 
     // 3. Dividi tra carte da tenere e da sostituire
@@ -383,7 +383,6 @@ io.on("connection", (socket) => {
         (c) =>
           (c.type === "unit" || c.type === "champion") &&
           c.metadata !== "main" &&
-          c.metadata !== "signature" &&
           !usedIds.has(c.instanceId)
       )
       .sort(() => Math.random() - 0.5)
