@@ -266,14 +266,10 @@ io.on("connection", (socket) => {
         });
         x += 100;
       });
-      hand.forEach((c) => {
-        const index = player.deck.cards.findIndex(
-          (card) => card.instanceId === c.instanceId
-        );
-        if (index !== -1) {
-          player.deck.cards.splice(index, 1);
-        }
-      });
+      // Rimuovi SOLO le 4 carte della mano iniziale dal mazzo
+      player.deck.cards = player.deck.cards.filter(
+        (c) => !hand.some((h) => h.instanceId === c.instanceId)
+      );
     });
     for (const [socketId, player] of playersArray) {
       const s = io.sockets.sockets.get(socketId);
@@ -361,10 +357,13 @@ io.on("connection", (socket) => {
     const discardedCards = handBefore.filter((c) =>
       cardIds.includes(c.card.instanceId)
     );
-    discardedCards.forEach((c) => {
-      const randIndex = Math.floor(Math.random() * (player.cards.length + 1));
-      player.cards.splice(randIndex, 0, c.card);
-    });
+    // Mischia solo le carte scartate
+    const shuffledDiscarded = discardedCards
+      .map((c) => c.card)
+      .sort(() => Math.random() - 0.5);
+
+    // Inseriscile in fondo al mazzo, mantenendo ordine casuale tra loro
+    player.cards.push(...shuffledDiscarded);
 
     // 3. Dividi tra carte da tenere e da sostituire
     const cardsToKeep = handBefore
@@ -461,7 +460,10 @@ io.on("connection", (socket) => {
       .map((c) => c.card.instanceId);
 
     const mainDeck = player.cards.filter(
-      (c) => c.type === "unit" && !floatingIds.includes(c.instanceId)
+      (c) =>
+        (c.type === "unit" || c.type === "champion") &&
+        c.metadata !== "main" &&
+        !floatingIds.includes(c.instanceId)
     );
 
     if (mainDeck.length === 0) return;
