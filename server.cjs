@@ -440,13 +440,13 @@ io.on("connection", (socket) => {
     if (!player) return;
 
     const floatingIds = state.floatingCards
-      .filter(
-        (c) => c.owner === "local" && c.card.id.startsWith(playerNickname)
-      )
-      .map((c) => c.card.id);
+      .filter((c) => c.owner === playerNickname)
+      .map((c) => c.card.instanceId);
+
     const mainDeck = player.cards.filter(
-      (c) => c.type === "unit" && !floatingIds.includes(c.id)
+      (c) => c.type === "unit" && !floatingIds.includes(c.instanceId)
     );
+
     if (mainDeck.length === 0) return;
     const card = mainDeck[0];
 
@@ -482,10 +482,12 @@ io.on("connection", (socket) => {
 
     const floatingIds = state.floatingCards
       .filter((c) => c.owner === playerNickname)
-      .map((c) => c.card.id);
+      .map((c) => c.card.instanceId);
+
     const runeDeck = player.cards.filter(
-      (c) => c.type === "rune" && !floatingIds.includes(c.id)
+      (c) => c.type === "rune" && !floatingIds.includes(c.instanceId)
     );
+
     if (runeDeck.length === 0) return;
 
     const card = runeDeck[0];
