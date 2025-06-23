@@ -344,12 +344,12 @@ io.on("connection", (socket) => {
       return !(isFromPlayer && isInHand);
     });
 
-    // 2. Recupera le carte tenute (non scartate)
+    // 2. Recupera le carte NON selezionate per il mulligan (cioè da tenere)
     const cardsToKeep = player.cards.filter(
       (c) =>
         (c.type === "unit" || c.type === "champion") &&
         c.metadata !== "main" &&
-        cardIds.includes(c.instanceId)
+        !cardIds.includes(c.instanceId)
     );
 
     // 3. Prende nuove carte dal mazzo (che non sono già state usate)
