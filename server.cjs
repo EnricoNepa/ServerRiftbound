@@ -229,7 +229,7 @@ io.on("connection", (socket) => {
 
       const available = shuffled.filter(
         (c) =>
-          (c.type === "unit" || c.type === "champion") && c.metadata !== "main"
+          (c.type === "unit" || c.type === "champion" || c.type === "signature") && c.metadata !== "main"
       );
 
       const hand = available.slice(0, 4);
@@ -345,7 +345,7 @@ io.on("connection", (socket) => {
     const handBefore = state.floatingCards.filter(
       (c) =>
         c.owner === playerNickname &&
-        (c.card.type === "unit" || c.card.type === "champion") &&
+        (c.card.type === "unit" || c.card.type === "champion" || c.card.type === "signature") &&
         c.card.metadata !== "main"
     );
 
@@ -380,7 +380,7 @@ io.on("connection", (socket) => {
     const availableNewCards = player.cards
       .filter(
         (c) =>
-          (c.type === "unit" || c.type === "champion") &&
+          (c.type === "unit" || c.type === "champion" || c.type === "signature") &&
           c.metadata !== "main" &&
           !usedIds.has(c.instanceId)
       )
@@ -461,7 +461,7 @@ io.on("connection", (socket) => {
 
     const mainDeck = player.cards.filter(
       (c) =>
-        (c.type === "unit" || c.type === "champion") &&
+        (c.type === "unit" || c.type === "champion" || c.type === "signature") &&
         c.metadata !== "main" &&
         !floatingIds.includes(c.instanceId)
     );
