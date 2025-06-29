@@ -301,6 +301,21 @@ io.on("connection", (socket) => {
         floatingCards.length,
         floatingCards
       );
+      floatingCards.push({
+        id: "deck",
+        card: { id: "deck", name: "Deck", type: "unit", instanceId: "deck" },
+        x: 1200,
+        y: 450,
+        owner: player.nickname,
+      });
+      floatingCards.push({
+        id: "runeDeck",
+        card: { id: "rune", name: "Runes", type: "rune", instanceId: "rune" },
+        x: 260,
+        y: 450,
+        owner: player.nickname,
+      });
+
       room.lastGameState = {
         floatingCards,
         allPlayers: playersArray.map(([_, p]) => {
