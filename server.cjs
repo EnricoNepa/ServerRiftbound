@@ -274,70 +274,59 @@ io.on("connection", (socket) => {
         (c) => !hand.some((h) => h.instanceId === c.instanceId)
       );
     });
-    for (const [socketId, player] of playersArray) {
-      const s = io.sockets.sockets.get(socketId);
-      if (!s) continue;
-      const thisPlayerNickname = player.nickname;
-      console.log("📤 Preparazione start-game per:", thisPlayerNickname);
-      floatingCards.forEach((card) => {
-        console.log(
-          "🃏 card.owner:",
-          card.owner,
-          "→",
-          card.owner === thisPlayerNickname ? "local" : "opponent"
-        );
-      });
-      const personalizedFloatingCards = floatingCards.map((card) => {
-        // Se la carta è del player corrente
-        if (card.owner === thisPlayerNickname) {
-          return { ...card, owner: "local" };
-        } else {
-          return { ...card, owner: "opponent" };
-        }
+    // prima aggiungi i deck UNA VOLTA SOLA
+    playersArray.forEach(([socketId, player], idx) => {
+      const yBase = idx === 0 ? yBaseBasso : yBaseAlto;
+
+      floatingCards.push({
+        id: `${player.nickname}-deck`,
+        card: {
+          id: "deck",
+          name: "Deck",
+          type: "unit",
+          instanceId: `${player.nickname}-deck`,
+        },
+        x: 1200,
+        y: yBase,
+        owner: player.nickname,
       });
 
-      console.log(
-        "floatingCards generato:",
-        floatingCards.length,
-        floatingCards
-      );
       floatingCards.push({
-        id: "deck",
-        card: { id: "deck", name: "Deck", type: "unit", instanceId: "deck" },
-        x: 1200,
-        y: 450,
-        owner: player.nickname,
-      });
-      floatingCards.push({
-        id: "runeDeck",
-        card: { id: "rune", name: "Runes", type: "rune", instanceId: "rune" },
+        id: `${player.nickname}-runeDeck`,
+        card: {
+          id: "rune",
+          name: "Runes",
+          type: "rune",
+          instanceId: `${player.nickname}-runeDeck`,
+        },
         x: 260,
-        y: 450,
+        y: yBase,
         owner: player.nickname,
       });
+    });
+
+    // poi personalizzi e invii a ciascun player
+    playersArray.forEach(([socketId, player]) => {
+      const s = io.sockets.sockets.get(socketId);
+      if (!s) return;
+
+      const thisPlayerNickname = player.nickname;
+
+      const personalizedFloatingCards = floatingCards.map((card) => ({
+        ...card,
+        owner: card.owner === thisPlayerNickname ? "local" : "opponent",
+      }));
 
       room.lastGameState = {
         floatingCards,
-        allPlayers: playersArray.map(([_, p]) => {
-          console.log(`🧪 [${p.nickname}] Deck salvato in allPlayers:`);
-          p.deck.cards.forEach((c) =>
-            console.log(`${c.name} → ${c.instanceId}`)
-          );
-          return {
-            nickname: p.nickname,
-            name: p.deck.name,
-            cards: p.deck.cards,
-          };
-        }),
+        allPlayers: playersArray.map(([_, p]) => ({
+          nickname: p.nickname,
+          name: p.deck.name,
+          cards: p.deck.cards,
+        })),
         roomCode: code,
       };
 
-      console.log(
-        "🧠 Stato centrale floatingCards:",
-        room.lastGameState.floatingCards.map((c) => c.owner)
-      );
-
-      // Invia a ogni player la versione personalizzata
       s.emit("start-game", {
         ...room.lastGameState,
         floatingCards: personalizedFloatingCards,
@@ -348,8 +337,8 @@ io.on("connection", (socket) => {
         },
       });
 
-      console.log("Emit start-game TO", player.nickname);
-    }
+      console.log(`✅ Emit start-game to ${player.nickname}`);
+    });
   });
 
   socket.on("mulligan", ({ code, playerNickname, cardIds }) => {
