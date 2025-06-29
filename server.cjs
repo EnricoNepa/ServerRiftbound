@@ -229,7 +229,10 @@ io.on("connection", (socket) => {
 
       const available = shuffled.filter(
         (c) =>
-          (c.type === "unit" || c.type === "champion" || c.type === "signature") && c.metadata !== "main"
+          (c.type === "unit" ||
+            c.type === "champion" ||
+            c.type === "signature") &&
+          c.metadata !== "main"
       );
 
       const hand = available.slice(0, 4);
@@ -345,7 +348,9 @@ io.on("connection", (socket) => {
     const handBefore = state.floatingCards.filter(
       (c) =>
         c.owner === playerNickname &&
-        (c.card.type === "unit" || c.card.type === "champion" || c.card.type === "signature") &&
+        (c.card.type === "unit" ||
+          c.card.type === "champion" ||
+          c.card.type === "signature") &&
         c.card.metadata !== "main"
     );
 
@@ -380,7 +385,9 @@ io.on("connection", (socket) => {
     const availableNewCards = player.cards
       .filter(
         (c) =>
-          (c.type === "unit" || c.type === "champion" || c.type === "signature") &&
+          (c.type === "unit" ||
+            c.type === "champion" ||
+            c.type === "signature") &&
           c.metadata !== "main" &&
           !usedIds.has(c.instanceId)
       )
@@ -461,7 +468,9 @@ io.on("connection", (socket) => {
 
     const mainDeck = player.cards.filter(
       (c) =>
-        (c.type === "unit" || c.type === "champion" || c.type === "signature") &&
+        (c.type === "unit" ||
+          c.type === "champion" ||
+          c.type === "signature") &&
         c.metadata !== "main" &&
         !floatingIds.includes(c.instanceId)
     );
@@ -549,44 +558,43 @@ io.on("connection", (socket) => {
     const room = rooms[code];
     if (!room || !room.lastGameState) return;
     const state = room.lastGameState;
-    const card = state.floatingCards.find(
-      (c) => c.id === cardId && c.card.id.startsWith(playerNickname)
-    );
+    const card = state.floatingCards.find((c) => c.id === cardId);
     if (!card) return;
+
+    if (["battlefield", "legend", "rune"].includes(card.card.type)) return;
+
     card.flipped = !card.flipped;
     syncGameStateToAll(code);
   });
+
   socket.on("tap-card", ({ code, cardId, playerNickname }) => {
     const room = rooms[code];
     if (!room || !room.lastGameState) return;
     const state = room.lastGameState;
-    const card = state.floatingCards.find(
-      (c) => c.id === cardId && c.card.id.startsWith(playerNickname)
-    );
+    const card = state.floatingCards.find((c) => c.id === cardId);
     if (!card) return;
+
+    if (card.card.type === "battlefield") return; // blocca tap su battlefield
+
     card.rotated = !card.rotated;
     syncGameStateToAll(code);
   });
+
   socket.on("recycle-card", ({ code, cardId, playerNickname }) => {
     const room = rooms[code];
     if (!room || !room.lastGameState) return;
     const state = room.lastGameState;
-    // Trova e rimuovi la carta dalle floatingCards
-    const idx = state.floatingCards.findIndex(
-      (c) => c.id === cardId && c.card.id.startsWith(playerNickname)
-    );
+    const idx = state.floatingCards.findIndex((c) => c.id === cardId);
     if (idx === -1) return;
+
+    if (["battlefield", "legend"].includes(state.floatingCards[idx].card.type))
+      return;
+
     const [cardObj] = state.floatingCards.splice(idx, 1);
 
-    // Rimetti la carta nel deck giusto (mainDeck/runeDeck)
     const player = state.allPlayers.find((p) => p.nickname === playerNickname);
     if (player) {
-      if (cardObj.card.type === "rune") {
-        // NESSUN ordinamento specifico qui, aggiungi come preferisci (inizio/fine)
-        player.cards.push(cardObj.card);
-      } else {
-        player.cards.push(cardObj.card);
-      }
+      player.cards.push(cardObj.card);
     }
 
     syncGameStateToAll(code);
