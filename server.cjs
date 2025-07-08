@@ -30,32 +30,90 @@ io.on("connection", (socket) => {
       cardInstance
     );
     const room = rooms[code];
+    const bothMulliganDone = Object.values(room.players).every(
+      (p) => p.mulliganDone
+    );
+    if (!bothMulliganDone) return; // 👈 evita movimenti prematuri
+
     if (!room || !room.lastGameState) return;
 
-    // Aggiorna la carta nel gameState centrale (owner deve restare il nickname!)
+    // Aggiorna la carta nel gameState centrale (owner deve restare il nickname!).
     const cards = room.lastGameState.floatingCards;
     const idx = cards.findIndex((c) => c.id === cardInstance.id);
     if (idx !== -1) {
-      // Assicurati che owner resti il vero nickname, NON "local"
       cards[idx] = { ...cards[idx], ...cardInstance, owner: cards[idx].owner };
     }
+
     console.log(
       `Carta ${cardInstance.id} mossa a x:${cardInstance.x} y:${cardInstance.y} (owner: ${cardInstance.owner})`
     );
+
     // Aggiorna lo stato centrale
     room.lastGameState.floatingCards = cards;
 
-    // Manda a tutti il nuovo gameState (full sync)
+    // Sync per ogni giocatore
     for (const socketId in room.players) {
       const s = io.sockets.sockets.get(socketId);
       if (!s) continue;
-      const thisNickname = room.players[socketId].nickname;
 
-      // Mappa "local"/"opponent" SOLO PER QUESTO CLIENT, senza toccare lo stato centrale
-      const personalizedCards = cards.map((card) => ({
-        ...card,
-        owner: card.owner === thisNickname ? "local" : "opponent",
-      }));
+      const thisNickname = room.players[socketId].nickname;
+      const localMulliganDone = room.players[socketId].mulliganDone;
+      const opponentMulliganDone = Object.values(room.players).find(
+        (p) => p.nickname !== thisNickname
+      )?.mulliganDone;
+
+      const personalizedCards = room.lastGameState.floatingCards
+        .filter((card) => {
+          const isLocal = card.owner === thisNickname;
+
+          // Nascondi la mano dell'avversario se non entrambi hanno finito il mulligan
+          if (!isLocal && (!localMulliganDone || !opponentMulliganDone)) {
+            const isInHand =
+              (card.card.type === "unit" ||
+                card.card.type === "champion" ||
+                card.card.type === "signature") &&
+              card.card.metadata !== "main";
+            if (isInHand) return false;
+          }
+
+          return true;
+        })
+        .map((card) => {
+          const isLocal = card.owner === thisNickname;
+          const isFirstPlayer =
+            thisNickname === room.lastGameState.allPlayers[0].nickname;
+          const opponentYOffset = isFirstPlayer ? -17 : +17;
+
+          let opponentXOffset = 0;
+          if (!isLocal) {
+            if (card.card.id === "rune") {
+              opponentXOffset = 782;
+            } else if (card.card.id === "deck") {
+              opponentXOffset = -781;
+            } else if (card.card.type === "legend") {
+              opponentXOffset = 614;
+            } else if (
+              card.card.type === "champion" &&
+              card.card.metadata === "main" &&
+              card.y !== 21 &&
+              card.y !== 580
+            ) {
+              opponentXOffset = 783;
+            }
+          }
+
+          return {
+            ...card,
+            owner: isLocal ? "local" : "opponent",
+            y: isLocal
+              ? card.y
+              : card.card.id === "deck" || card.card.id === "rune"
+              ? card.y + opponentYOffset + (isFirstPlayer ? -5 : +5)
+              : card.y + opponentYOffset,
+            x: isLocal ? card.x : card.x + opponentXOffset,
+            rotation: isLocal ? 0 : 180,
+          };
+        });
 
       s.emit("start-game", {
         ...room.lastGameState,
@@ -185,8 +243,8 @@ io.on("connection", (socket) => {
     const cardsByPlayer = {};
 
     const BOARD_HEIGHT = 855;
-    const yBaseBasso = BOARD_HEIGHT - 350; // parte bassa (es. 2485)
-    const yBaseAlto = 350; // parte alta
+    const yBaseBasso = BOARD_HEIGHT - 1250; // parte bassa (es. 2485)
+    const yBaseAlto = 250; // parte alta
 
     playersArray.forEach(([socketId, player], idx) => {
       console.log("Numero di giocatori ready:", playersArray.length);
@@ -232,7 +290,8 @@ io.on("connection", (socket) => {
           (c.type === "unit" ||
             c.type === "champion" ||
             c.type === "signature") &&
-          c.metadata !== "main"
+          c.metadata !== "main" &&
+          c.id !== "deck"
       );
 
       const hand = available.slice(0, 4);
@@ -244,13 +303,45 @@ io.on("connection", (socket) => {
         .slice(2, 6)}`;
       let x = 260;
       [battlefield, champion, legend].filter(Boolean).forEach((c) => {
+        let cardX = x;
+        let cardY = yBase - 50;
+        if (c.type === "battlefield" && idx === 0) {
+          // sposta legend player1
+          cardX = 639;
+          cardY = 290;
+        }
+        if (c.type === "battlefield" && idx === 1) {
+          // sposta legend player1
+          cardX = 762;
+          cardY = 308;
+        }
+        if (c.type === "legend" && idx === 0) {
+          // sposta legend player1
+          cardX = 397;
+          cardY = 383;
+        }
+        if (c.type === "legend" && idx === 1) {
+          // sposta legend player1
+          cardX = 397;
+          cardY = 216;
+        }
+        if (c.type === "champion" && idx === 0) {
+          // sposta champion player2
+          cardX = 313;
+          cardY = 383;
+        }
+        if (c.type === "champion" && idx === 1) {
+          // sposta champion player2
+          cardX = 313;
+          cardY = 215;
+        }
         floatingCards.push({
           id: `${nickname}-${Date.now()}-${Math.random()
             .toString(36)
             .slice(2, 6)}`,
           card: { ...c, instanceId: generatedId },
-          x,
-          y: yBase - 50,
+          x: cardX,
+          y: cardY,
           owner: nickname,
         });
         x += 120;
@@ -273,11 +364,33 @@ io.on("connection", (socket) => {
       player.deck.cards = player.deck.cards.filter(
         (c) => !hand.some((h) => h.instanceId === c.instanceId)
       );
+      room.players[socketId].mulliganDone = false;
     });
     // prima aggiungi i deck UNA VOLTA SOLA
     playersArray.forEach(([socketId, player], idx) => {
       const yBase = idx === 0 ? yBaseBasso : yBaseAlto;
-
+      let deckX = 1200;
+      let deckY = yBase;
+      if (idx === 0) {
+        // sposta il deck del player1
+        deckX = 1093;
+        deckY = 426;
+      }
+      if (idx === 1) {
+        // sposta il deck del player2
+        deckX = 1093;
+        deckY = 219;
+      }
+      if (idx === 0) {
+        // sposta le rune del player1
+        runeX = 314;
+        runeY = 482;
+      }
+      if (idx === 1) {
+        // sposta le rune del player2
+        runeX = 314;
+        runeY = 119;
+      }
       floatingCards.push({
         id: `${player.nickname}-deck`,
         card: {
@@ -286,8 +399,8 @@ io.on("connection", (socket) => {
           type: "unit",
           instanceId: `${player.nickname}-deck`,
         },
-        x: 1200,
-        y: yBase,
+        x: deckX,
+        y: deckY,
         owner: player.nickname,
       });
 
@@ -299,8 +412,8 @@ io.on("connection", (socket) => {
           type: "rune",
           instanceId: `${player.nickname}-runeDeck`,
         },
-        x: 260,
-        y: yBase,
+        x: runeX,
+        y: runeY,
         owner: player.nickname,
       });
     });
@@ -312,13 +425,55 @@ io.on("connection", (socket) => {
 
       const thisPlayerNickname = player.nickname;
 
-      const personalizedFloatingCards = floatingCards.map((card) => ({
-        ...card,
-        owner: card.owner === thisPlayerNickname ? "local" : "opponent",
-      }));
+      const personalizedFloatingCards = floatingCards
+        .filter((card) => {
+          const isLocal = card.owner === thisPlayerNickname;
+          const isHandCard =
+            (card.card.type === "unit" ||
+              card.card.type === "champion" ||
+              card.card.type === "signature") &&
+            card.card.metadata !== "main";
+          // se la carta è di mano e non del player, non mostrarla
+          if (isHandCard && !isLocal) return false;
+          return true;
+        })
+        .map((card) => ({
+          ...card,
+          owner: card.owner === thisPlayerNickname ? "local" : "opponent",
+        }));
+
+      // crea floatingCards filtrate già per stato globale (NO mani avversarie finché non finisce il mulligan)
+      const safeFloatingCards = floatingCards.filter((c) => {
+        const allNicknames = playersArray.map(([_, p]) => p.nickname);
+        const isInHand =
+          (c.card.type === "unit" ||
+            c.card.type === "champion" ||
+            c.card.type === "signature") &&
+          c.card.metadata !== "main";
+        // se in mano => visibile solo al proprio proprietario
+        if (isInHand) return false;
+        return true;
+      });
+      function hideOpponentHands(cards, players) {
+        const hidden = [];
+        for (const c of cards) {
+          const isInHand =
+            (c.card.type === "unit" ||
+              c.card.type === "champion" ||
+              c.card.type === "signature") &&
+            c.card.metadata !== "main";
+
+          if (isInHand) {
+            // aggiungi solo la mano del proprietario, non globalmente
+            continue;
+          }
+          hidden.push(c);
+        }
+        return hidden;
+      }
 
       room.lastGameState = {
-        floatingCards,
+        floatingCards: floatingCards, // SALVA TUTTO
         allPlayers: playersArray.map(([_, p]) => ({
           nickname: p.nickname,
           name: p.deck.name,
@@ -326,9 +481,22 @@ io.on("connection", (socket) => {
         })),
         roomCode: code,
       };
+      const opponent = playersArray.find(([sid]) => sid !== socketId)[1];
 
       s.emit("start-game", {
-        ...room.lastGameState,
+        roomCode: code,
+        allPlayers: [
+          {
+            nickname: player.nickname,
+            name: player.deck.name,
+            cards: cardsByPlayer[player.nickname],
+          },
+          {
+            nickname: opponent.nickname,
+            name: opponent.deck.name,
+            cards: [], // deck vuoto avversario
+          },
+        ],
         floatingCards: personalizedFloatingCards,
         deck: {
           nickname: player.nickname,
@@ -360,11 +528,14 @@ io.on("connection", (socket) => {
 
     // 2. Rimuovi TUTTE le carte della mano corrente
     state.floatingCards = state.floatingCards.filter(
-      (c) => !handBefore.includes(c)
+      (c) =>
+        !handBefore
+          .filter((hc) => hc.card.id !== "deck")
+          .some((hc) => hc.id === c.id)
     );
     // Rimetti le carte scartate nel mazzo (quelle selezionate per il mulligan)
-    const discardedCards = handBefore.filter((c) =>
-      cardIds.includes(c.card.instanceId)
+    const discardedCards = handBefore.filter(
+      (c) => cardIds.includes(c.card.instanceId) && c.card.id !== "deck"
     );
     // Mischia solo le carte scartate
     const shuffledDiscarded = discardedCards
@@ -376,7 +547,9 @@ io.on("connection", (socket) => {
 
     // 3. Dividi tra carte da tenere e da sostituire
     const cardsToKeep = handBefore
-      .filter((c) => !cardIds.includes(c.card.instanceId))
+      .filter(
+        (c) => !cardIds.includes(c.card.instanceId) && c.card.id !== "deck" // 👈 esclude la carta deck
+      )
       .map((c) => c.card);
 
     // 4. Calcola ID già usati (per evitare duplicati)
@@ -393,6 +566,7 @@ io.on("connection", (socket) => {
             c.type === "champion" ||
             c.type === "signature") &&
           c.metadata !== "main" &&
+          c.id !== "deck" && // aggiungi questa condizione
           !usedIds.has(c.instanceId)
       )
       .sort(() => Math.random() - 0.5)
@@ -403,7 +577,16 @@ io.on("connection", (socket) => {
     // 6. Aggiungi alla board
     const yBase =
       state.floatingCards.find((c) => c.owner === playerNickname)?.y || 500;
-    let x = 260;
+    const firstPlayer = Object.values(room.players)[0].nickname;
+    const secondPlayer = Object.values(room.players)[1].nickname;
+    let x = 510;
+    let yHand = 0;
+    if (playerNickname === firstPlayer) {
+      yHand = 580;
+    }
+    if (playerNickname === secondPlayer) {
+      yHand = 21;
+    }
 
     newHand.forEach((c) => {
       const generatedId = `${playerNickname}-${Date.now()}-${Math.random()
@@ -423,14 +606,107 @@ io.on("connection", (socket) => {
         id: generatedId,
         card: updatedCard,
         x,
-        y: yBase - 50,
+        y: yHand,
         owner: playerNickname,
       });
 
       x += 100;
     });
 
-    syncGameStateToAll(code);
+    const sid = Object.keys(room.players).find(
+      (id) => room.players[id].nickname === playerNickname
+    );
+    if (sid) room.players[sid].mulliganDone = true;
+
+    // invia comunque una sync parziale AL SUO client
+    syncGameStateToSingle(code, sid);
+
+    // sync globale SOLO se entrambi hanno finito
+    const allMulliganDone = Object.values(room.players).every(
+      (p) => p.mulliganDone
+    );
+    if (allMulliganDone) {
+      syncGameStateToAll(code);
+    }
+    function syncGameStateToSingle(code, socketId) {
+      const room = rooms[code];
+      if (!room || !room.lastGameState) return;
+      room.lastGameState.floatingCards.forEach((c) => {
+        if (c.card.id === "deck") {
+          if (c.owner === room.lastGameState.allPlayers[0].nickname) {
+            c.x = 1093;
+            c.y = 426;
+          }
+          if (c.owner === room.lastGameState.allPlayers[1].nickname) {
+            c.x = 1093;
+            c.y = 219;
+          }
+        }
+      });
+
+      const s = io.sockets.sockets.get(socketId);
+      if (!s) return;
+
+      const thisNickname = room.players[socketId].nickname;
+
+      const personalizedCards = room.lastGameState.floatingCards
+        .filter((card) => {
+          const isLocal = card.owner === thisNickname;
+          const opponentMulliganDone = Object.values(room.players).find(
+            (p) => p.nickname !== thisNickname
+          )?.mulliganDone;
+          if (!isLocal && !opponentMulliganDone) return false;
+          return true;
+        })
+        .map((card) => {
+          const isLocal = card.owner === thisNickname;
+          const isFirstPlayer =
+            thisNickname === room.lastGameState.allPlayers[0].nickname;
+          const opponentYOffset = isFirstPlayer ? -17 : +17;
+          let opponentXOffset = 0;
+
+          if (!isLocal) {
+            switch (card.card.id) {
+              case "rune":
+                opponentXOffset = 782;
+                break;
+              case "deck":
+                opponentXOffset = -781;
+                break;
+              default:
+                if (card.card.type === "legend") opponentXOffset = 614;
+                if (
+                  card.card.type === "champion" &&
+                  card.card.metadata === "main"
+                )
+                  opponentXOffset = 783;
+                break;
+            }
+          }
+
+          return {
+            ...card,
+            owner: isLocal ? "local" : "opponent",
+            y: isLocal
+              ? card.y
+              : card.card.id === "deck" || card.card.id === "rune"
+              ? card.y + opponentYOffset + (isFirstPlayer ? -5 : +5)
+              : card.y + opponentYOffset,
+            x: isLocal ? card.x : card.x + opponentXOffset,
+            rotation: isLocal ? 0 : 180,
+          };
+        });
+
+      s.emit("start-game", {
+        ...room.lastGameState,
+        floatingCards: personalizedCards,
+        allPlayers: room.lastGameState.allPlayers.map((p) => ({
+          nickname: p.nickname,
+          name: p.name,
+          cards: p.nickname === thisNickname ? p.cards : [], // opponent deck vuoto
+        })),
+      });
+    }
   });
 
   socket.on("disconnect", () => {
@@ -486,19 +762,20 @@ io.on("connection", (socket) => {
       .toString(36)
       .slice(2, 6)}`;
 
-    const yBase =
-      state.floatingCards.find((c) => c.owner === playerNickname)?.y || 500;
+    const firstPlayer = room.players[Object.keys(room.players)[0]].nickname;
+    const secondPlayer = room.players[Object.keys(room.players)[1]].nickname;
 
-    let x =
-      260 +
-      state.floatingCards.filter((c) => c.owner === playerNickname).length *
-        100;
+    let yHand = 0;
+    if (playerNickname === firstPlayer) yHand = 580;
+    if (playerNickname === secondPlayer) yHand = 21;
+
+    let x = Math.floor(Math.random() * (1000 - 880 + 1)) + 880;
 
     state.floatingCards.push({
       id: generatedId,
       card: { ...card, instanceId: generatedId },
       x,
-      y: yBase - 50,
+      y: yHand,
       owner: playerNickname,
     });
     // Rimuovi la carta pescata dal mazzo del player
@@ -533,18 +810,24 @@ io.on("connection", (socket) => {
     const generatedId = `${playerNickname}-${Date.now()}-${Math.random()
       .toString(36)
       .slice(2, 6)}`;
-    const yBase =
-      state.floatingCards.find((c) => c.owner === playerNickname)?.y || 500;
-    const x =
-      260 +
-      state.floatingCards.filter((c) => c.owner === playerNickname).length *
-        100;
+    const firstPlayer = room.players[Object.keys(room.players)[0]].nickname;
+    const secondPlayer = room.players[Object.keys(room.players)[1]].nickname;
+
+    let yHand = 0;
+    if (playerNickname === firstPlayer) yHand = 487;
+    if (playerNickname === secondPlayer) yHand = 115;
+
+    const runeCount = state.floatingCards.filter(
+      (c) => c.owner === playerNickname && c.card.type === "rune"
+    ).length;
+
+    const x = 385 + runeCount * 15;
 
     state.floatingCards.push({
       id: generatedId,
       card: { ...card, instanceId: generatedId },
       x,
-      y: yBase - 50,
+      y: yHand,
       owner: playerNickname,
     });
     // Rimuovi la carta pescata dal mazzo del player
@@ -637,20 +920,87 @@ io.on("connection", (socket) => {
     const room = rooms[code];
     if (!room || !room.lastGameState) return;
 
+    // forzare la posizione del deck ogni sync
+    room.lastGameState.floatingCards.forEach((c) => {
+      if (c.card.id === "deck") {
+        if (c.owner === room.lastGameState.allPlayers[0].nickname) {
+          c.x = 1093; // coords player1
+          c.y = 380;
+        }
+        if (c.owner === room.lastGameState.allPlayers[1].nickname) {
+          c.x = 1093; // coords player2
+          c.y = 219;
+        }
+      }
+      return c;
+    });
+
     for (const socketId in room.players) {
       const s = io.sockets.sockets.get(socketId);
       if (!s) continue;
       const nickname = room.players[socketId].nickname;
+      const thisNickname = room.players[socketId].nickname;
 
-      const personalizedCards = room.lastGameState.floatingCards.map(
-        (card) => ({
-          ...card,
-          owner: card.owner === nickname ? "local" : "opponent",
+      const personalizedCards = room.lastGameState.floatingCards
+        .filter((card) => {
+          const isLocal = card.owner === thisNickname;
+          const localMulliganDone = room.players[socketId].mulliganDone;
+          const opponentMulliganDone = Object.values(room.players).find(
+            (p) => p.nickname !== thisNickname
+          )?.mulliganDone;
+          if (!isLocal && (!localMulliganDone || !opponentMulliganDone))
+            return false;
+          return true;
         })
-      );
+        .map((card) => {
+          const isLocal = card.owner === thisNickname;
+          const isFirstPlayer =
+            thisNickname === room.lastGameState.allPlayers[0].nickname;
+          const opponentYOffset = isFirstPlayer ? -17 : +17;
+          let opponentXOffset = 0;
+
+          if (!isLocal) {
+            switch (card.card.id) {
+              case "rune":
+                opponentXOffset = 782;
+                break;
+              case "deck":
+                opponentXOffset = -781;
+                break;
+              default:
+                if (card.card.type === "legend") opponentXOffset = 614;
+                if (
+                  card.card.type === "champion" &&
+                  card.card.metadata === "main"
+                )
+                  opponentXOffset = 783;
+                break;
+            }
+          }
+
+          return {
+            ...card,
+            owner: isLocal ? "local" : "opponent",
+            y: isLocal
+              ? card.y
+              : card.card.id === "deck" || card.card.id === "rune"
+              ? card.y + opponentYOffset + (isFirstPlayer ? -5 : +5)
+              : card.y + opponentYOffset,
+            x: isLocal ? card.x : card.x + opponentXOffset,
+            rotation: isLocal ? 0 : 180,
+          };
+        });
+      if (!room.players[socketId].mulliganDone) {
+        s.emit("waiting-for-mulligan");
+      }
 
       s.emit("start-game", {
         ...room.lastGameState,
+        allPlayers: room.lastGameState.allPlayers.map((p) => ({
+          nickname: p.nickname,
+          name: p.name,
+          cards: p.nickname === thisNickname ? p.cards : [], // mostra mazzo vuoto per opponent
+        })),
         floatingCards: personalizedCards,
       });
     }
