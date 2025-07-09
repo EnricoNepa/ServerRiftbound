@@ -11,7 +11,7 @@ function cleanCard(card) {
 
 const app = express();
 app.use(cors());
-
+const BOARD_WIDTH = 1410;
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
@@ -110,7 +110,7 @@ io.on("connection", (socket) => {
               : card.card.id === "deck" || card.card.id === "rune"
               ? card.y + opponentYOffset + (isFirstPlayer ? -5 : +5)
               : card.y + opponentYOffset,
-            x: isLocal ? card.x : card.x + opponentXOffset,
+            x: isLocal ? card.x : BOARD_WIDTH - card.x,
             rotation: isLocal ? 0 : 180,
           };
         });
@@ -312,7 +312,7 @@ io.on("connection", (socket) => {
         }
         if (c.type === "battlefield" && idx === 1) {
           // sposta legend player1
-          cardX = 762;
+          cardX = 639;
           cardY = 308;
         }
         if (c.type === "legend" && idx === 0) {
@@ -692,7 +692,7 @@ io.on("connection", (socket) => {
               : card.card.id === "deck" || card.card.id === "rune"
               ? card.y + opponentYOffset + (isFirstPlayer ? -5 : +5)
               : card.y + opponentYOffset,
-            x: isLocal ? card.x : card.x + opponentXOffset,
+            x: isLocal ? card.x : BOARD_WIDTH - card.x,
             rotation: isLocal ? 0 : 180,
           };
         });
@@ -886,6 +886,36 @@ io.on("connection", (socket) => {
 
     syncGameStateToAll(code);
   });
+  socket.on("update-points", ({ code, nickname, points }) => {
+    const room = rooms[code];
+    if (!room) return;
+    room.players[socket.id].points = points;
+    io.to(code).emit("points-update", { nickname, points });
+  });
+  socket.on("spawn-token", ({ code, playerNickname, card, x, y }) => {
+    const room = rooms[code];
+    if (!room || !room.lastGameState) return;
+    room.lastGameState.floatingCards.push({
+      id: card.instanceId,
+      card,
+      x,
+      y,
+      owner: playerNickname,
+    });
+    syncGameStateToAll(code);
+  });
+  socket.on("remove-token", ({ code, cardId }) => {
+    const room = rooms[code];
+    if (!room || !room.lastGameState) return;
+    room.lastGameState.floatingCards = room.lastGameState.floatingCards.filter(
+      (c) => c.id !== cardId
+    );
+    syncGameStateToAll(code);
+  });
+  socket.on("chat-message", ({ code, nickname, text }) => {
+    if (!rooms[code]) return;
+    io.to(code).emit("chat-message", { nickname, text });
+  });
 
   //TERMINA PARTITA
   socket.on("end-game", ({ code }) => {
@@ -986,7 +1016,7 @@ io.on("connection", (socket) => {
               : card.card.id === "deck" || card.card.id === "rune"
               ? card.y + opponentYOffset + (isFirstPlayer ? -5 : +5)
               : card.y + opponentYOffset,
-            x: isLocal ? card.x : card.x + opponentXOffset,
+            x: isLocal ? card.x : BOARD_WIDTH - card.x,
             rotation: isLocal ? 0 : 180,
           };
         });
