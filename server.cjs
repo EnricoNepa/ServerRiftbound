@@ -210,6 +210,7 @@ io.on("connection", (socket) => {
     socket.leave(code);
     console.log(`${nickname} left room ${code}`);
 
+    // Se era host, riassegna host
     if (room.hostId === socket.id) {
       const remaining = Object.keys(room.players);
       room.hostId = remaining[0] || null;
@@ -218,7 +219,14 @@ io.on("connection", (socket) => {
     if (Object.keys(room.players).length === 0) {
       delete rooms[code];
     } else {
+      // ❗❗ Avvisa gli altri player che la room è chiusa
+      socket.to(code).emit("room-closed");
+
       emitRoomPlayers(code);
+      io.to(code).emit("player-left", {
+        nickname,
+        wasHost: socket.id === room.hostId,
+      });
     }
   });
 
